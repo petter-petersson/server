@@ -100,7 +100,6 @@ int main(int argc, const char *argv[]) {
   }
   signal(SIGPIPE, SIG_IGN);
 
-
   //socket..
   if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
     fprintf(stderr, "Failed to create socket");
@@ -150,11 +149,10 @@ int main(int argc, const char *argv[]) {
     if(shutting_down){
       goto shutdown;
     }
-    //printf("socket: %d\n", s2);
     
     rarg = malloc(sizeof(req_arg_t));
     if(rarg == NULL){
-      printf("malloc\n");
+      fprintf(stderr, "malloc failure\n");
       exit(1);
     }
     rarg->fd = s2;

@@ -19,7 +19,7 @@ void request_handler(void *arg) {
 
   req_arg_t * rarg = (req_arg_t *) arg;
   int clientfd = rarg->fd;
-  printf("clientfd: %d\n", clientfd);
+  //printf("clientfd: %d\n", clientfd);
 
   ssize_t n;
   char buffer[BUFSIZ];
@@ -32,7 +32,6 @@ void request_handler(void *arg) {
     if ((n = recv(clientfd, buffer, sizeof(buffer), 0)) <= 0) {
       if (n == 0) {
         // connection closed
-        printf("selectserver: socket %d hung up\n", clientfd);
         break;
       } else {
         fprintf(stderr, "Err: recv on clientfd %d\n", clientfd);
@@ -72,7 +71,6 @@ void request_handler(void *arg) {
 abort:
   mem_buf_destroy(data);
 out:
-  printf("out\n");
   //NOTE: writing a response without dup:ing the socket seem to create Errno::EPIPE
   printf("closing %d\n", clientfd);
   close(clientfd);
