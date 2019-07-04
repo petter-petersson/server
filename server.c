@@ -4,20 +4,23 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 #include <sys/un.h>
 #include <unistd.h>
 #include <signal.h>
 #include <pthread.h>
-//#include <stdbool.h>
+#include <stdbool.h>
 #include <getopt.h>
 
 #include "server.h"
 #include "request.h"
 #include "threadpool.h"
 
-int running = 1;
+bool shutting_down = false;
 char * sock_path;
 
+// In order to move past accept we need this function.
 void * flush(void *arg){
   printf("Shutting down, sending internal signal: %s.", sock_path);
 
@@ -49,8 +52,8 @@ void * flush(void *arg){
 
 void sig_break_loop(int signo){
   printf("sig_break_loop: %d", signo);
-  running = 0;
-  flush(NULL);
+  shutting_down = true;
+  flush(NULL); //will trigger accept by hopefully accepting a final connetion
 }
 
 void print_help(const char * app_name){
@@ -63,11 +66,7 @@ void print_help(const char * app_name){
 
 int main(int argc, const char *argv[]) {
 
-  //limited effect on conn refused:
   struct timeval timeout;
-  timeout.tv_sec = 10;
-  timeout.tv_usec = 0;
-
   int c;
   sock_path = DEFAULT_SOCK_PATH;
   threadpool * pool;
@@ -76,8 +75,8 @@ int main(int argc, const char *argv[]) {
   struct sockaddr_un local, remote;
   req_arg_t * rarg = NULL;
 
+  // Parse options
   opterr = 0;
-
   while ((c = getopt (argc, (char **)argv, "hs:")) != -1) {
     switch (c)
     {
@@ -92,21 +91,25 @@ int main(int argc, const char *argv[]) {
         break;
     }
   }
-
+  
+  //TODO: is this needed?
+  //preventing client crash/abort to end this program:
   if (signal(SIGINT, sig_break_loop) == SIG_ERR){
     printf("signal");
     exit(1);
   }
-  //preventing client crash/abort to end this program:
   signal(SIGPIPE, SIG_IGN);
 
-  //num worker threads that receive requests
-  pool = threadpool_create(5);
 
+  //socket..
   if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
-    printf("socket");
+    fprintf(stderr, "Failed to create socket");
     exit(1);
   }
+
+  // setting timeout options on socket:
+  timeout.tv_sec = 10;
+  timeout.tv_usec = 0;
   if (setsockopt (s, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
                 sizeof(timeout)) < 0) {
     fprintf(stderr, "setsockopt failed\n");
@@ -117,31 +120,37 @@ int main(int argc, const char *argv[]) {
     fprintf(stderr, "setsockopt failed\n");
   }
 
+  //binding..
   memset(&local, 0, sizeof(local));
-
   local.sun_family = AF_UNIX;
   strncpy(local.sun_path, sock_path, sizeof(local.sun_path)-1);
-
   unlink(local.sun_path);
   if (bind(s, (struct sockaddr *) &local,
                      sizeof(struct sockaddr_un)) == -1) {
-    printf("bind");
+
+    fprintf(stderr, "Failed to bind");
     exit(1);
   }
 
-  //5
+  //listen.. default was 5 nb
   if (listen(s, 30) == -1) {
-    printf("listen");
+    fprintf(stderr, "Listen call failed");
     exit(1);
   }
 
-  while(running) {
+  //num worker threads that receive requests
+  pool = threadpool_create(5);
+
+  while(1) {
     t = sizeof(remote);
     if ((s2 = accept(s, (struct sockaddr *)&remote, &t)) == -1) {
-      printf("accept");
+      fprintf(stderr, "accept call failed");
       exit(1);
     }
-    printf("socket: %d\n", s2);
+    if(shutting_down){
+      goto shutdown;
+    }
+    //printf("socket: %d\n", s2);
     
     rarg = malloc(sizeof(req_arg_t));
     if(rarg == NULL){
@@ -151,6 +160,8 @@ int main(int argc, const char *argv[]) {
     rarg->fd = s2;
     threadpool_dispatch(pool, request_handler, rarg);
   }
+
+shutdown:
   threadpool_destroy(pool);
 
   printf("Good bye.");
