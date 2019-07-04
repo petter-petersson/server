@@ -1,0 +1,5 @@
+*.o
+*.swp
+*.swo
+image_server
+*_test

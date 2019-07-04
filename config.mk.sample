@@ -1,0 +1,3 @@
+CFLAGS=-I../bst -I../token-generator -I../threadpool
+REL_LDFLAGS=-L../bst -L../token-generator/release -L../threadpool/release
+DBG_LDFLAGS=-L../bst/debug -L../token-generator/debug -L../threadpool/debug
