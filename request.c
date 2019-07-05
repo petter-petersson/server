@@ -14,15 +14,17 @@
 #include "request.h"
 #include "image.h"
 #include "mem_buf.h"
+#include "token_generator.h"
 
 void request_handler(void *arg) {
 
   req_arg_t * rarg = (req_arg_t *) arg;
-  int clientfd = rarg->fd;
-  //printf("clientfd: %d\n", clientfd);
+  int clientfd = fd_req_arg_t(rarg);
+  token_generator_t * tg = token_generator_server_ctx_t(server_ctx_req_arg_t(rarg));
 
   ssize_t n;
   char buffer[BUFSIZ];
+  char tok[20];
   //int enough?
   int bytes_read = 0;
   mem_buf_t * data = mem_buf_create(BUFSIZ);
@@ -51,6 +53,8 @@ void request_handler(void *arg) {
   }
 
   assert(bytes_read == data->pos);
+
+  token_generate(tg, tok, sizeof(tok));
   //TODO: dispatch to another threadpool
   image_process(data);
 
@@ -60,8 +64,9 @@ void request_handler(void *arg) {
   FILE * fd = fdopen(dup(clientfd), "w"); 
   if(fd){
     fprintf(fd, 
-            "Hello. fd %d received %d bytes in transfer. Goodbye.\n",
+            "Job <%d:%s> init. received %d bytes in transfer. Goodbye.\n",
             clientfd,
+            tok,
             bytes_read);
     fflush(fd);
     fclose(fd);

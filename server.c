@@ -161,7 +161,8 @@ int main(int argc, const char *argv[]) {
       fprintf(stderr, "malloc failure\n");
       exit(1);
     }
-    rarg->fd = s2;
+    x_fd_req_arg_t(rarg) = s2;
+    x_server_ctx_req_arg_t(rarg) = &server_context;
     threadpool_dispatch(pool, request_handler, rarg);
   }
 
