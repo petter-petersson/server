@@ -59,8 +59,8 @@ void request_handler(void *arg) {
   image_process(data);
 
   //dup
-  //TODO return ticket id
   //very important: dup() see :out
+  //tmp, binary server should return binary data too (?)
   FILE * fd = fdopen(dup(clientfd), "w"); 
   if(fd){
     fprintf(fd, 
