@@ -12,17 +12,19 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <getopt.h>
+#include <time.h>
 
 #include "server.h"
 #include "request.h"
 #include "threadpool.h"
+#include "token_generator.h"
 
 bool shutting_down = false;
 char * sock_path;
 
 // In order to move past accept we need this function.
 void * flush(void *arg){
-  printf("Shutting down, sending internal signal: %s.", sock_path);
+  printf("Shutting down, sending internal signal: %s.\n", sock_path);
 
   int s;
   struct sockaddr_un remote;
@@ -91,6 +93,11 @@ int main(int argc, const char *argv[]) {
         break;
     }
   }
+  //setup context
+  server_ctx_t server_context;
+  token_generator_t generator;
+  token_generator_init(&generator);
+  server_context.token_generator = &generator;
   
   //TODO: is this needed?
   //preventing client crash/abort to end this program:
@@ -105,7 +112,6 @@ int main(int argc, const char *argv[]) {
     fprintf(stderr, "Failed to create socket");
     exit(1);
   }
-
   // setting timeout options on socket:
   timeout.tv_sec = 10;
   timeout.tv_usec = 0;

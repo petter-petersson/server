@@ -1,6 +1,6 @@
 -include config.mk
 override CFLAGS+=-std=c99 -D_GNU_SOURCE
-LIBS= -lpthread -lbtree -lthreadpool
+LIBS= -lpthread -lbtree -lthreadpool -ltoken_generator
 
 DEBUG_FLAGS=-g -DDEBUG
 BUILD_DIR=release
