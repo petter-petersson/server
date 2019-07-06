@@ -14,48 +14,22 @@
 #include <getopt.h>
 #include <time.h>
 
+#include <fcntl.h>
+//kqueue
+#include <sys/types.h>
+#include <sys/event.h>
+#include <sys/time.h>
+
 #include "server.h"
-#include "request.h"
-#include "threadpool.h"
-#include "token_generator.h"
 
 bool shutting_down = false;
 char * sock_path;
 
-// In order to move past accept we need this function.
-void * flush(void *arg){
-  printf("Shutting down, sending internal signal: %s.\n", sock_path);
-
-  int s;
-  struct sockaddr_un remote;
-
-  if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
-    printf("socket");
-    exit(1);
-  }
-
-  remote.sun_family = AF_UNIX;
-  strcpy(remote.sun_path, sock_path);
-  if (connect(s, (struct sockaddr *)&remote, sizeof(struct sockaddr_un)) == -1) {
-    printf("connect");
-    exit(1);
-  }
-
-  int ret;
-  if ((ret = send(s, 0, 0, 0)) == -1) {
-    printf("send");
-    exit(1);
-  }
-  close(s);
-
-  return 0;
-}
-
+int queue; //todo: move to context
 
 void sig_break_loop(int signo){
   printf("sig_break_loop: %d", signo);
   shutting_down = true;
-  flush(NULL); //will trigger accept by hopefully accepting a final connetion
 }
 
 void print_help(const char * app_name){
@@ -66,16 +40,48 @@ void print_help(const char * app_name){
   printf("\n");
 }
 
-int main(int argc, const char *argv[]) {
-
-  struct timeval timeout;
-  int c;
+void server_listen(){
   sock_path = DEFAULT_SOCK_PATH;
-  threadpool * pool;
-  int s, s2;
+  int s;
   unsigned int t;
   struct sockaddr_un local, remote;
-  req_arg_t * rarg = NULL;
+
+  queue = kqueue();
+
+  if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+    fprintf(stderr, "Failed to create socket: %s", strerror(errno));
+    exit(1);
+  }
+  int o = 1;
+  setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &o, sizeof(o));
+
+  memset(&local, 0, sizeof(local));
+  local.sun_family = AF_UNIX;
+  strncpy(local.sun_path, sock_path, sizeof(local.sun_path)-1);
+  unlink(local.sun_path);
+
+  int flags = fcntl(s, F_GETFL, 0);
+  if (flags < 0) {
+    server_error("F_GETFL: %s\n", strerror(errno));
+  }
+  if (fcntl(s, F_SETFL, flags | O_NONBLOCK) < 0) {
+    server_error("O_NONBLOCK: %s\n", strerror(errno));
+  }
+
+  if (bind(s, (struct sockaddr *) &local,
+                     sizeof(struct sockaddr_un)) == -1) {
+    server_error("Failed to bind. %s\n", strerror(errno));
+  }
+
+  //default was 5
+  if (listen(s, 30) == -1) {
+    server_error("Failed to listen. %s\n", strerror(errno));
+  }
+}
+
+int main(int argc, const char *argv[]) {
+
+  int c;
 
   // Parse options
   opterr = 0;
@@ -93,11 +99,7 @@ int main(int argc, const char *argv[]) {
         break;
     }
   }
-  //setup context
   server_ctx_t server_context;
-  token_generator_t generator;
-  token_generator_init(&generator);
-  server_context.token_generator = &generator;
   
   //TODO: is this needed?
   //preventing client crash/abort to end this program:
@@ -107,44 +109,6 @@ int main(int argc, const char *argv[]) {
   }
   signal(SIGPIPE, SIG_IGN);
 
-  //socket..
-  if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
-    fprintf(stderr, "Failed to create socket");
-    exit(1);
-  }
-  // setting timeout options on socket:
-  timeout.tv_sec = 10;
-  timeout.tv_usec = 0;
-  if (setsockopt (s, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
-                sizeof(timeout)) < 0) {
-    fprintf(stderr, "setsockopt failed\n");
-  }
-
-  if (setsockopt (s, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout,
-        sizeof(timeout)) < 0) {
-    fprintf(stderr, "setsockopt failed\n");
-  }
-
-  //binding..
-  memset(&local, 0, sizeof(local));
-  local.sun_family = AF_UNIX;
-  strncpy(local.sun_path, sock_path, sizeof(local.sun_path)-1);
-  unlink(local.sun_path);
-  if (bind(s, (struct sockaddr *) &local,
-                     sizeof(struct sockaddr_un)) == -1) {
-
-    fprintf(stderr, "Failed to bind");
-    exit(1);
-  }
-
-  //listen.. default was 5 nb
-  if (listen(s, 30) == -1) {
-    fprintf(stderr, "Listen call failed");
-    exit(1);
-  }
-
-  //num worker threads that receive requests
-  pool = threadpool_create(5);
 
   while(1) {
     t = sizeof(remote);
@@ -152,24 +116,8 @@ int main(int argc, const char *argv[]) {
       fprintf(stderr, "accept call failed");
       exit(1);
     }
-    if(shutting_down){
-      goto shutdown;
-    }
-    
-    rarg = malloc(sizeof(req_arg_t));
-    if(rarg == NULL){
-      fprintf(stderr, "malloc failure\n");
-      exit(1);
-    }
-    x_fd_req_arg_t(rarg) = s2;
-    x_server_ctx_req_arg_t(rarg) = &server_context;
-    threadpool_dispatch(pool, request_handler, rarg);
   }
 
-shutdown:
-  threadpool_destroy(pool);
-
   printf("Good bye.");
-  sleep(1);
   return 0;
 }
