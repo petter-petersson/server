@@ -26,6 +26,7 @@ bool shutting_down = false;
 char * sock_path;
 
 int queue; //todo: move to context
+int s; //server fd, move to context and rename.
 
 void sig_break_loop(int signo){
   printf("sig_break_loop: %d", signo);
@@ -40,11 +41,10 @@ void print_help(const char * app_name){
   printf("\n");
 }
 
-void server_listen(){
+void server_init(){
   sock_path = DEFAULT_SOCK_PATH;
-  int s;
-  unsigned int t;
-  struct sockaddr_un local, remote;
+  //unsigned int t;
+  struct sockaddr_un local;//, remote;
 
   queue = kqueue();
 
@@ -82,8 +82,6 @@ void server_listen(){
 int main(int argc, const char *argv[]) {
 
   int c;
-
-  // Parse options
   opterr = 0;
   while ((c = getopt (argc, (char **)argv, "hs:")) != -1) {
     switch (c)
@@ -99,6 +97,7 @@ int main(int argc, const char *argv[]) {
         break;
     }
   }
+
   server_ctx_t server_context;
   
   //TODO: is this needed?
