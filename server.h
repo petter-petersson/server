@@ -59,6 +59,7 @@ typedef struct connection_s {
   printf("allocated connections: %d\n", avail_connections_server_ctx_t(_n)); \
   printf("active connections: %d\n", num_connections_server_ctx_t(_n)); \
   printf("server fd: %d\n", fd_server_ctx_t(_n)); \
+  printf("--\n"); \
 } while (0)
 
 #endif
