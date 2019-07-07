@@ -50,6 +50,6 @@ def send_data_chunk
   socket.close
 end
 
-send_data_chunk
-#send_data
+#send_data_chunk
+send_data
 

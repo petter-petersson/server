@@ -64,14 +64,33 @@ void server_init_connection(server_ctx_t * server_ctx, int id, int filter, int f
 }
 
 int server_read(server_ctx_t * sctx, struct kevent *event){
-  printf("server_read: %d\n", fd_connection_t((connection_t *)event->udata));
+  char buffer[BUFSIZ];
+  ssize_t n = 0;
+
+  assert(event != NULL);
+  assert(event->udata != NULL);
+  connection_t * conn = (connection_t *)event->udata;
+  int clientfd = fd_connection_t(conn);
+
+  if ((n = recv(clientfd, buffer, sizeof(buffer), 0)) <= 0) {
+    if (n == 0) {
+      free(conn);
+      close(clientfd);
+      //TEST
+      server_init_connection(sctx, event->ident, EVFILT_READ, EV_DISABLE, NULL);
+
+      return 0;
+    } else {
+      perror("recv");
+      abort();
+    }
+  }
+  //printf("read %zu bytes\n", n);
   return 0;
 }
 
 int server_accept(server_ctx_t * sctx, struct kevent *event){
   printf("server_accept\n");
-  //this should be called on server instance only
-  //assert this
   socklen_t remote_size;
   int client_fd;
   struct sockaddr_un remote;
@@ -79,6 +98,7 @@ int server_accept(server_ctx_t * sctx, struct kevent *event){
   connection_t * conn = (connection_t * )event->udata;
   assert(conn != NULL);
 
+  //why is this not server fd sometimes? fixme
   printf("accept conn->fd: %d\n", fd_connection_t(conn));
 
   remote_size = sizeof(remote);
@@ -86,6 +106,7 @@ int server_accept(server_ctx_t * sctx, struct kevent *event){
   client_fd = accept(fd_server_ctx_t(sctx), (struct sockaddr *)&remote, &remote_size);
   if (client_fd < 0) {
     if (errno == EWOULDBLOCK || errno == EAGAIN) {
+      printf("accept: EWOULDBLOCK\n");
       return 0;
     }
     perror("accept");
