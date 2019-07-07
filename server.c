@@ -99,7 +99,16 @@ int server_read(server_ctx_t * sctx, struct kevent *event){
 
   assert(fd_connection_t(conn) == event->ident);
 
-  //printf("read: conn->fd: %d event->ident: %ld\n", clientfd, event->ident);
+  if( event->flags & EV_ERROR){
+    perror("event");
+    printf("event->data: %ld\n", event->data);
+    abort(); //or?
+  }
+
+  if (event->flags & EV_EOF) {
+    printf("premature end of file?\n");
+    //todo count total bytes
+  }
 
   if ((n = recv(clientfd, buffer, sizeof(buffer), 0)) <= 0) {
     if (n == 0) {
