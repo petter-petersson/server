@@ -28,20 +28,116 @@ void server_help(const char * app_name){
   printf("\n");
 }
 
-void server_run(server_ctx_t * server_ctx){
+//change init to update
+void server_init_connection(server_ctx_t * server_ctx, int id, int filter, int flags, void *udata) {
+  printf("server_init_connection\n");
+  struct kevent *m;
+
+  if(avail_connections_server_ctx_t(server_ctx) == 0){
+    x_avail_connections_server_ctx_t(server_ctx) = SERVER_CTX_NUM_CONN_ALLOC;
+    m = malloc(avail_connections_server_ctx_t(server_ctx) * sizeof(struct kevent));
+    if(m){
+      x_events_server_ctx_t(server_ctx) = m;
+    } else {
+      perror("malloc");
+      abort();
+    }
+  }
+  if (num_connections_server_ctx_t(server_ctx) <= avail_connections_server_ctx_t(server_ctx)) {
+    int new_size = avail_connections_server_ctx_t(server_ctx) + SERVER_CTX_NUM_CONN_ALLOC;
+    m = realloc(events_server_ctx_t(server_ctx), new_size * sizeof(struct kevent));
+    if(m){
+      x_events_server_ctx_t(server_ctx) = m;
+    } else {
+      perror("malloc");
+      abort();
+    }
+  }
+  x_num_connections_server_ctx_t(server_ctx) = num_connections_server_ctx_t(server_ctx) + 1;
+  server_debug_print(server_ctx);
+
+  EV_SET(events_server_ctx_t(server_ctx), id, filter, flags, 0, 0, udata);
+}
+
+int server_read(server_ctx_t * sctx, struct kevent *event){
+  printf("server_read\n");
+  return 1;
+}
+
+int server_accept(server_ctx_t * sctx, struct kevent *event){
+  printf("server_accept\n");
+  //this should be called on server instance only
+  //assert this
   socklen_t remote_size;
   int client_fd;
   struct sockaddr_un remote;
 
-  while(true) {
-    remote_size = sizeof(remote);
-    client_fd = accept(fd_server_ctx_t(server_ctx), (struct sockaddr *)&remote, &remote_size);
-    if (client_fd < 0) {
-      if (errno == EWOULDBLOCK || errno == EAGAIN) {
-        continue;
+  connection_t * conn = (connection_t * )event->udata;
+  assert(conn != NULL);
+
+  remote_size = sizeof(remote);
+  //todo use conn->fd!
+  client_fd = accept(fd_server_ctx_t(sctx), (struct sockaddr *)&remote, &remote_size);
+  if (client_fd < 0) {
+    if (errno == EWOULDBLOCK || errno == EAGAIN) {
+      return 0;
+    }
+    perror("accept");
+    exit(errno);
+  }
+
+  int flags = fcntl(client_fd, F_GETFL, 0);
+  if (flags < 0) {
+    perror("F_GETFL");
+    exit(errno);
+  }
+  if (fcntl(client_fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+    perror("O_NONBLOCK");
+    exit(errno);
+  }
+
+  connection_t * client_conn = malloc(sizeof(connection_t));
+  if(client_conn == NULL){
+    perror("malloc");
+    abort();
+  }
+  x_fd_connection_t(client_conn) = client_fd;
+  x_read_connection_t(client_conn) = server_read;
+  //client_conn->read = server_read;
+  server_init_connection(sctx, client_fd, EVFILT_READ, EV_ADD | EV_ENABLE, client_conn);
+
+  return 1;
+}
+
+void server_run(server_ctx_t * sctx){
+
+  printf("server_run\n");
+  int new_events;
+
+  while (1) {
+    new_events = kevent(queue_server_ctx_t(sctx), 
+                        events_server_ctx_t(sctx), 
+                        num_connections_server_ctx_t(sctx), 
+                        events_server_ctx_t(sctx),//hm
+                        avail_connections_server_ctx_t(sctx), 
+                        NULL);
+
+    if (new_events < 0) {
+      perror("kevent");
+      abort();
+    }
+    printf("new events: %d\n", new_events);
+    //why
+    x_num_connections_server_ctx_t(sctx) = 0;
+
+    for (int i = 0; i < new_events; i++) {
+      struct kevent *e = &(events_server_ctx_t(sctx)[i]);
+      connection_t * conn = (connection_t *) e->udata;
+
+      if (conn == NULL) continue;
+      if (conn->read != NULL && e->filter == EVFILT_READ) {
+        while (conn->read(sctx, e));
       }
-      perror("accept");
-      exit(errno);
     }
   }
 }
@@ -88,6 +184,8 @@ server_ctx_t * server_init(server_ctx_t * server_ctx, char * sock_path){
   }
 
   x_fd_server_ctx_t(server_ctx) = s;
+  x_avail_connections_server_ctx_t(server_ctx) = 0;
+  x_num_connections_server_ctx_t(server_ctx) = 0;
 
   return server_ctx;
 }
@@ -112,12 +210,17 @@ int main(int argc, const char *argv[]) {
         break;
     }
   }
-
   //todo: alloc since we will destroy other resources anyway later on
   server_ctx_t server_context;
   server_ctx_t * sctx;
 
   sctx = server_init(&server_context, sock_path);
+
+  connection_t server_connection = {
+    .fd = fd_server_ctx_t(sctx),
+    .read = server_accept
+  };
+  server_init_connection(sctx, fd_server_ctx_t(sctx), EVFILT_READ, EV_ADD | EV_ENABLE, &server_connection);
   
   server_run(sctx);
 
