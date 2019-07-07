@@ -30,8 +30,11 @@ void server_help(const char * app_name){
 
 //change init to update
 void server_init_connection(server_ctx_t * server_ctx, int id, int filter, int flags, void *udata) {
-  printf("server_init_connection\n");
+  struct kevent evSet;
   struct kevent *m, *e;
+
+  printf("server_init_connection on id: %d\n", id);
+  printf("udata: %p\n", udata);
 
   if(avail_connections_server_ctx_t(server_ctx) == 0){
     x_avail_connections_server_ctx_t(server_ctx) = SERVER_CTX_NUM_CONN_ALLOC;
@@ -43,24 +46,28 @@ void server_init_connection(server_ctx_t * server_ctx, int id, int filter, int f
       abort();
     }
   }
-  if (num_connections_server_ctx_t(server_ctx) <= avail_connections_server_ctx_t(server_ctx)) {
+  if (num_connections_server_ctx_t(server_ctx) >= avail_connections_server_ctx_t(server_ctx)) {
     int new_size = avail_connections_server_ctx_t(server_ctx) + SERVER_CTX_NUM_CONN_ALLOC;
     m = realloc(events_server_ctx_t(server_ctx), new_size * sizeof(struct kevent));
     if(m){
       x_events_server_ctx_t(server_ctx) = m;
+      x_avail_connections_server_ctx_t(server_ctx) = new_size;
     } else {
       perror("malloc");
       abort();
     }
   }
-  e = (events_server_ctx_t(server_ctx) + num_connections_server_ctx_t(server_ctx));
-  assert(e != NULL); //todo out of bounds check?
-
+  //FIXME: this should not automatically bumped!
   x_num_connections_server_ctx_t(server_ctx) = num_connections_server_ctx_t(server_ctx) + 1;
   server_debug_print(server_ctx);
 
-  //FIXME: this might be wrong
-  EV_SET(e, id, filter, flags, 0, 0, udata);
+  printf("EV_SET on id %d\n", id);
+  EV_SET(&evSet, id, filter, flags, 0, 0, udata);
+  if (kevent(queue_server_ctx_t(server_ctx), &evSet, 1, NULL, 0, NULL) < 0) {
+    fprintf(stderr, "error %s:%d\n", __FILE__, __LINE__);
+    perror("kevent");
+    abort();
+  }
 }
 
 int server_read(server_ctx_t * sctx, struct kevent *event){
@@ -72,12 +79,17 @@ int server_read(server_ctx_t * sctx, struct kevent *event){
   connection_t * conn = (connection_t *)event->udata;
   int clientfd = fd_connection_t(conn);
 
+  assert(fd_connection_t(conn) == event->ident);
+
+  //printf("read: conn->fd: %d event->ident: %ld\n", clientfd, event->ident);
+
   if ((n = recv(clientfd, buffer, sizeof(buffer), 0)) <= 0) {
     if (n == 0) {
-      free(conn);
-      close(clientfd);
       //TEST
-      server_init_connection(sctx, event->ident, EVFILT_READ, EV_DISABLE, NULL);
+      server_init_connection(sctx, event->ident, EVFILT_READ, EV_DELETE, NULL);
+      close(clientfd);
+      //FIXME: this segfaults find out why and reinstall
+      //free(conn);
 
       return 0;
     } else {
@@ -97,10 +109,13 @@ int server_accept(server_ctx_t * sctx, struct kevent *event){
 
   connection_t * conn = (connection_t * )event->udata;
   assert(conn != NULL);
-
-  //why is this not server fd sometimes? fixme
+  
   printf("accept conn->fd: %d\n", fd_connection_t(conn));
-
+  if(fd_connection_t(conn) != fd_server_ctx_t(sctx)){
+    printf("not a valid accept event. fix this?\n");
+    return 0;
+  }
+  
   remote_size = sizeof(remote);
   //todo use conn->fd!
   client_fd = accept(fd_server_ctx_t(sctx), (struct sockaddr *)&remote, &remote_size);
@@ -142,9 +157,9 @@ void server_run(server_ctx_t * sctx){
 
   while (1) {
     new_events = kevent(queue_server_ctx_t(sctx), 
-                        events_server_ctx_t(sctx), 
-                        num_connections_server_ctx_t(sctx), 
-                        events_server_ctx_t(sctx),//hm
+                        NULL, 
+                        0, 
+                        events_server_ctx_t(sctx),
                         avail_connections_server_ctx_t(sctx), 
                         NULL);
 
