@@ -8,8 +8,6 @@
 #include <netinet/in.h>
 #include <sys/un.h>
 #include <unistd.h>
-#include <signal.h>
-#include <pthread.h>
 #include <stdbool.h>
 #include <getopt.h>
 #include <time.h>
@@ -22,15 +20,9 @@
 
 #include "server.h"
 
-bool shutting_down = false;
-char * sock_path;
-
-int queue; //todo: move to context
-int s; //server fd, move to context and rename.
-
 void sig_break_loop(int signo){
   printf("sig_break_loop: %d", signo);
-  shutting_down = true;
+  //shutting_down = true;
 }
 
 void print_help(const char * app_name){
@@ -41,16 +33,34 @@ void print_help(const char * app_name){
   printf("\n");
 }
 
-void server_init(){
-  sock_path = DEFAULT_SOCK_PATH;
-  //unsigned int t;
-  struct sockaddr_un local;//, remote;
+void server_run(server_ctx_t * server_ctx){
+  socklen_t remote_size;
+  int client_fd;
+  struct sockaddr_un remote;
 
-  queue = kqueue();
+  while(true) {
+    remote_size = sizeof(remote);
+    client_fd = accept(fd_server_ctx_t(server_ctx), (struct sockaddr *)&remote, &remote_size);
+    if (client_fd < 0) {
+      if (errno == EWOULDBLOCK || errno == EAGAIN) {
+        continue;
+      }
+      perror("accept");
+      exit(errno);
+    }
+  }
+}
+
+server_ctx_t * server_init(server_ctx_t * server_ctx, char * sock_path){
+  struct sockaddr_un local;
+  int s;
+
+  x_socket_path_server_ctx_t(server_ctx) = sock_path;
+  x_queue_server_ctx_t(server_ctx) = kqueue();
 
   if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-    fprintf(stderr, "Failed to create socket: %s", strerror(errno));
-    exit(1);
+    perror("socket");
+    exit(errno);
   }
   int o = 1;
   setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &o, sizeof(o));
@@ -62,27 +72,37 @@ void server_init(){
 
   int flags = fcntl(s, F_GETFL, 0);
   if (flags < 0) {
-    server_error("F_GETFL: %s\n", strerror(errno));
+    perror("F_GETFL");
+    exit(errno);
   }
   if (fcntl(s, F_SETFL, flags | O_NONBLOCK) < 0) {
-    server_error("O_NONBLOCK: %s\n", strerror(errno));
+    perror("O_NONBLOCK");
+    exit(errno);
   }
 
   if (bind(s, (struct sockaddr *) &local,
                      sizeof(struct sockaddr_un)) == -1) {
-    server_error("Failed to bind. %s\n", strerror(errno));
+    perror("bind");
+    exit(errno);
   }
 
   //default was 5
   if (listen(s, 30) == -1) {
-    server_error("Failed to listen. %s\n", strerror(errno));
+    perror("listen");
+    exit(errno);
   }
+
+  x_fd_server_ctx_t(server_ctx) = s;
+
+  return server_ctx;
 }
 
 int main(int argc, const char *argv[]) {
 
   int c;
   opterr = 0;
+  char * sock_path = DEFAULT_SOCK_PATH;
+
   while ((c = getopt (argc, (char **)argv, "hs:")) != -1) {
     switch (c)
     {
@@ -98,24 +118,14 @@ int main(int argc, const char *argv[]) {
     }
   }
 
+  //todo: alloc since we will destroy other resources anyway later on
   server_ctx_t server_context;
+  server_ctx_t * sctx;
+
+  sctx = server_init(&server_context, sock_path);
   
-  //TODO: is this needed?
-  //preventing client crash/abort to end this program:
-  if (signal(SIGINT, sig_break_loop) == SIG_ERR){
-    printf("signal");
-    exit(1);
-  }
-  signal(SIGPIPE, SIG_IGN);
+  server_run(sctx);
 
-
-  while(1) {
-    t = sizeof(remote);
-    if ((s2 = accept(s, (struct sockaddr *)&remote, &t)) == -1) {
-      fprintf(stderr, "accept call failed");
-      exit(1);
-    }
-  }
 
   printf("Good bye.");
   return 0;
