@@ -57,7 +57,7 @@ void server_init_connection(server_ctx_t * server_ctx, int id, int filter, int f
       abort();
     }
   }
-  //FIXME: this should not automatically bumped!
+  //FIXME: this should not automatically bumped? (if we delete ex)
   x_num_connections_server_ctx_t(server_ctx) = num_connections_server_ctx_t(server_ctx) + 1;
   server_debug_print(server_ctx);
 
@@ -68,6 +68,24 @@ void server_init_connection(server_ctx_t * server_ctx, int id, int filter, int f
     perror("kevent");
     abort();
   }
+}
+
+//this is never called?
+int server_disconnect(server_ctx_t * sctx, struct kevent *event){
+
+  assert(event != NULL);
+  assert(event->udata != NULL);
+  connection_t * conn = (connection_t *)event->udata;
+  int clientfd = fd_connection_t(conn);
+
+  assert(fd_connection_t(conn) == event->ident);
+  printf("server_disconnect %ld\n", event->ident);
+  //why is this func called prematurely (?)
+  //
+  //server_init_connection(sctx, event->ident, EVFILT_READ, EV_DELETE, NULL);
+  //close(clientfd);
+  //todo: free
+  return 0;
 }
 
 int server_read(server_ctx_t * sctx, struct kevent *event){
@@ -97,6 +115,7 @@ int server_read(server_ctx_t * sctx, struct kevent *event){
       abort();
     }
   }
+  //TODO: print bytes read
   //printf("read %zu bytes\n", n);
   return 0;
 }
@@ -145,6 +164,7 @@ int server_accept(server_ctx_t * sctx, struct kevent *event){
   }
   x_fd_connection_t(client_conn) = client_fd;
   x_read_connection_t(client_conn) = server_read;
+  x_disconnect_connection_t(client_conn) = server_disconnect;
   server_init_connection(sctx, client_fd, EVFILT_READ, EV_ADD | EV_ENABLE, client_conn);
 
   return 1;
@@ -172,9 +192,13 @@ void server_run(server_ctx_t * sctx){
 
     for (int i = 0; i < new_events; i++) {
       struct kevent *e = &(events_server_ctx_t(sctx)[i]);
+      assert(e != NULL);
       connection_t * conn = (connection_t *) e->udata;
 
       if (conn == NULL) continue;
+      if (conn->disconnect != NULL && e->flags & EV_EOF) {
+        while (conn->disconnect(sctx, e));
+      }
       if (conn->read != NULL && e->filter == EVFILT_READ) {
         while (conn->read(sctx, e));
       }
@@ -258,7 +282,8 @@ int main(int argc, const char *argv[]) {
 
   connection_t server_connection = {
     .fd = fd_server_ctx_t(sctx),
-    .read = server_accept
+    .read = server_accept,
+    .disconnect = NULL
   };
   server_init_connection(sctx, fd_server_ctx_t(sctx), EVFILT_READ, EV_ADD | EV_ENABLE, &server_connection);
   
