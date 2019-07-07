@@ -29,11 +29,11 @@ void server_help(const char * app_name){
 }
 
 //change init to update
-void server_init_connection(server_ctx_t * server_ctx, int id, int filter, int flags, void *udata) {
+void server_update_connection(server_ctx_t * server_ctx, int id, int filter, int flags, void *udata) {
   struct kevent evSet;
   struct kevent *m, *e;
 
-  printf("server_init_connection on id: %d\n", id);
+  printf("server_update_connection on id: %d\n", id);
   printf("udata: %p\n", udata);
 
   if(avail_connections_server_ctx_t(server_ctx) == 0){
@@ -82,7 +82,7 @@ int server_disconnect(server_ctx_t * sctx, struct kevent *event){
   printf("server_disconnect %ld\n", event->ident);
   //why is this func called prematurely (?)
   //
-  //server_init_connection(sctx, event->ident, EVFILT_READ, EV_DELETE, NULL);
+  //server_update_connection(sctx, event->ident, EVFILT_READ, EV_DELETE, NULL);
   //close(clientfd);
   //todo: free
   return 0;
@@ -104,10 +104,10 @@ int server_read(server_ctx_t * sctx, struct kevent *event){
   if ((n = recv(clientfd, buffer, sizeof(buffer), 0)) <= 0) {
     if (n == 0) {
       //TEST
-      server_init_connection(sctx, event->ident, EVFILT_READ, EV_DELETE, NULL);
+      server_update_connection(sctx, event->ident, EVFILT_READ, EV_DELETE, NULL);
       close(clientfd);
       //FIXME: this segfaults find out why and reinstall
-      //free(conn);
+      free(conn);
 
       return 0;
     } else {
@@ -165,7 +165,7 @@ int server_accept(server_ctx_t * sctx, struct kevent *event){
   x_fd_connection_t(client_conn) = client_fd;
   x_read_connection_t(client_conn) = server_read;
   x_disconnect_connection_t(client_conn) = server_disconnect;
-  server_init_connection(sctx, client_fd, EVFILT_READ, EV_ADD | EV_ENABLE, client_conn);
+  server_update_connection(sctx, client_fd, EVFILT_READ, EV_ADD | EV_ENABLE, client_conn);
 
   return 1;
 }
@@ -285,7 +285,7 @@ int main(int argc, const char *argv[]) {
     .read = server_accept,
     .disconnect = NULL
   };
-  server_init_connection(sctx, fd_server_ctx_t(sctx), EVFILT_READ, EV_ADD | EV_ENABLE, &server_connection);
+  server_update_connection(sctx, fd_server_ctx_t(sctx), EVFILT_READ, EV_ADD | EV_ENABLE, &server_connection);
   
   server_run(sctx);
 
