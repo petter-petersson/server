@@ -1,6 +1,8 @@
 #ifndef __SERVER_H
 #define __SERVER_H
 
+#include <assert.h>
+
 #define DEFAULT_SOCK_PATH "/tmp/jamboree.sock"
 
 typedef struct server_ctx_s {

@@ -42,7 +42,7 @@ all: ln
 test: mem_buf_test
 	./mem_buf_test
 
-image_server: server.o request.o image.o mem_buf.o
+image_server: server.o image.o mem_buf.o
 	$(CC) $(CFLAGS) $^ -o $(BUILD_DIR)/$@ $(LDFLAGS) $(LIBS)
 
 mem_buf_test: test.o mem_buf.o mem_buf_test.o
