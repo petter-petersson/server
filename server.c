@@ -20,12 +20,7 @@
 
 #include "server.h"
 
-void sig_break_loop(int signo){
-  printf("sig_break_loop: %d", signo);
-  //shutting_down = true;
-}
-
-void print_help(const char * app_name){
+void server_help(const char * app_name){
   printf("\n");
   printf("\x1B[33mUsage: %s [-h] [-s socket]\n", app_name);
   printf("\t-s   Path to socket file. Deault file is <%s>\n", DEFAULT_SOCK_PATH);
@@ -112,7 +107,7 @@ int main(int argc, const char *argv[]) {
       case 'h':
       case '?':
       default:
-        print_help(argv[0]);
+        server_help(argv[0]);
         exit(0);
         break;
     }
