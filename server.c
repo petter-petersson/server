@@ -99,12 +99,16 @@ int server_write(server_ctx_t * sctx, struct kevent *event){
 
   assert(fd_connection_t(conn) == event->ident);
   printf("server_write %ld\n", event->ident);
-  if(event->filter & EVFILT_WRITE) printf("write\n");
-  if(event->filter & EVFILT_READ) printf("read\n");
-  //
-  //server_update_connection(sctx, event->ident, EVFILT_READ, EV_DELETE, NULL);
-  //close(clientfd);
-  //server_update_connection(sctx, event->ident, EVFILT_READ, EV_DELETE, conn);
+
+  FILE * fd = fdopen(dup(clientfd), "w");
+  if(fd){
+    fprintf(fd,
+        "Job <%d> init. received %d bytes in transfer. Goodbye.\n",
+        clientfd,
+        bytes_read_connection_t(conn));
+    fflush(fd);
+    fclose(fd);
+  }
   server_update_connection(sctx, event->ident, EVFILT_WRITE, EV_DELETE, conn);
   close(clientfd);
   free(conn);
@@ -127,17 +131,11 @@ int server_read(server_ctx_t * sctx, struct kevent *event){
     printf("event->data: %ld\n", event->data);
     abort(); //or?
   }
-  /*
-  if (event->flags & EV_EOF) {
-    printf("premature end of file?\n");
-    //todo count total bytes
-  }
-  */
+
   if ((n = recv(clientfd, buffer, sizeof(buffer), 0)) <= 0) {
     if (n == 0) {
       
       printf("%ld is done. Read %d bytes\n", event->ident, bytes_read_connection_t(conn));
-      //TODO: one shot?
       server_update_connection(sctx, event->ident, EVFILT_READ, EV_DISABLE, conn);
       server_update_connection(sctx, event->ident, EVFILT_WRITE, EV_ADD | EV_ENABLE, conn);
       //close(clientfd);
@@ -199,7 +197,7 @@ int server_accept(server_ctx_t * sctx, struct kevent *event){
   x_bytes_read_connection_t(client_conn) = 0;
   server_update_connection(sctx, client_fd, EVFILT_READ, EV_ADD | EV_ENABLE, client_conn);
   //??
-  //server_update_connection(sctx, client_fd, EVFILT_WRITE, EV_ADD, client_conn);
+  server_update_connection(sctx, client_fd, EVFILT_WRITE, EV_ADD | EV_DISABLE, client_conn);
 
   return 1;
 }
