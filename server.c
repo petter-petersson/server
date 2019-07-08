@@ -20,6 +20,8 @@
 
 #include "server.h"
 
+//TODO: remove accessors and have asserts at fn beginning instead?
+//
 void server_help(const char * app_name){
   printf("\n");
   printf("\x1B[33mUsage: %s [-h] [-s socket]\n", app_name);
@@ -28,7 +30,6 @@ void server_help(const char * app_name){
   printf("\n");
 }
 
-//change init to update
 void server_update_connection(server_ctx_t * server_ctx, int id, int filter, int flags, void *udata) {
   struct kevent evSet;
   struct kevent *m;
@@ -188,7 +189,7 @@ int server_accept(server_ctx_t * sctx, struct kevent *event){
   connection_t * client_conn = malloc(sizeof(connection_t));
   if(client_conn == NULL){
     perror("malloc");
-    abort();
+    exit(errno);
   }
   x_fd_connection_t(client_conn) = client_fd;
   x_read_connection_t(client_conn) = server_read;
