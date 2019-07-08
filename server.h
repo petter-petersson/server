@@ -4,7 +4,7 @@
 #include <assert.h>
 
 #define DEFAULT_SOCK_PATH "/tmp/jamboree.sock"
-#define SERVER_CTX_NUM_CONN_ALLOC 64
+#define SERVER_CTX_NUM_CONN_ALLOC 8
 
 
 typedef struct server_ctx_s {
@@ -16,8 +16,10 @@ typedef struct server_ctx_s {
   struct kevent * events;
 } server_ctx_t;
 
+//separate file + init & destroy methods
 typedef struct connection_s {
-  int fd;
+  int fd; // redundant since we have event->ident
+  int bytes_read;
   int (*read) (server_ctx_t *sctx, struct kevent *event);
   int (*disconnect) (server_ctx_t *sctx, struct kevent *event);
 } connection_t;
@@ -53,6 +55,8 @@ typedef struct connection_s {
 #define read_connection_t(_n) ((void)0, x_read_connection_t(_n))
 #define x_disconnect_connection_t(_n) (deref_connection_t(_n)->disconnect)
 #define disconnect_connection_t(_n) ((void)0, x_disconnect_connection_t(_n))
+#define x_bytes_read_connection_t(_n) (deref_connection_t(_n)->bytes_read)
+#define bytes_read_connection_t(_n) ((void)0, x_bytes_read_connection_t(_n))
 
 #define server_error(...) do { \
   fprintf(stderr, __VA_ARGS__); exit(1); \

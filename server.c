@@ -31,10 +31,16 @@ void server_help(const char * app_name){
 //change init to update
 void server_update_connection(server_ctx_t * server_ctx, int id, int filter, int flags, void *udata) {
   struct kevent evSet;
-  struct kevent *m, *e;
+  struct kevent *m;
 
-  printf("server_update_connection on id: %d\n", id);
-  printf("udata: %p\n", udata);
+  if(flags & EV_DELETE) {
+    printf("server_update_connection on id: %d\n", id);
+    printf("udata: %p\n", udata);
+    server_debug_print(server_ctx);
+  }
+
+  //FIXME: this should not automatically bumped? (if we delete for instance)
+  x_num_connections_server_ctx_t(server_ctx) = num_connections_server_ctx_t(server_ctx) + 1;
 
   if(avail_connections_server_ctx_t(server_ctx) == 0){
     x_avail_connections_server_ctx_t(server_ctx) = SERVER_CTX_NUM_CONN_ALLOC;
@@ -46,6 +52,7 @@ void server_update_connection(server_ctx_t * server_ctx, int id, int filter, int
       abort();
     }
   }
+  //todo downsize too?
   if (num_connections_server_ctx_t(server_ctx) >= avail_connections_server_ctx_t(server_ctx)) {
     int new_size = avail_connections_server_ctx_t(server_ctx) + SERVER_CTX_NUM_CONN_ALLOC;
     m = realloc(events_server_ctx_t(server_ctx), new_size * sizeof(struct kevent));
@@ -57,9 +64,6 @@ void server_update_connection(server_ctx_t * server_ctx, int id, int filter, int
       abort();
     }
   }
-  //FIXME: this should not automatically bumped? (if we delete ex)
-  x_num_connections_server_ctx_t(server_ctx) = num_connections_server_ctx_t(server_ctx) + 1;
-  server_debug_print(server_ctx);
 
   printf("EV_SET on id %d\n", id);
   EV_SET(&evSet, id, filter, flags, 0, 0, udata);
@@ -70,7 +74,7 @@ void server_update_connection(server_ctx_t * server_ctx, int id, int filter, int
   }
 }
 
-//this is never called?
+//why is this func called prematurely?
 int server_disconnect(server_ctx_t * sctx, struct kevent *event){
 
   assert(event != NULL);
@@ -79,12 +83,10 @@ int server_disconnect(server_ctx_t * sctx, struct kevent *event){
   int clientfd = fd_connection_t(conn);
 
   assert(fd_connection_t(conn) == event->ident);
-  printf("server_disconnect %ld\n", event->ident);
-  //why is this func called prematurely (?)
+  //printf("server_disconnect %ld\n", event->ident);
   //
   //server_update_connection(sctx, event->ident, EVFILT_READ, EV_DELETE, NULL);
   //close(clientfd);
-  //todo: free
   return 0;
 }
 
@@ -104,18 +106,18 @@ int server_read(server_ctx_t * sctx, struct kevent *event){
     printf("event->data: %ld\n", event->data);
     abort(); //or?
   }
-
+  /*
   if (event->flags & EV_EOF) {
     printf("premature end of file?\n");
     //todo count total bytes
   }
-
+  */
   if ((n = recv(clientfd, buffer, sizeof(buffer), 0)) <= 0) {
     if (n == 0) {
-      //TEST
+      
+      printf("%ld is done. Read %d bytes\n", event->ident, bytes_read_connection_t(conn));
       server_update_connection(sctx, event->ident, EVFILT_READ, EV_DELETE, NULL);
       close(clientfd);
-      //FIXME: this segfaults find out why and reinstall
       free(conn);
 
       return 0;
@@ -124,13 +126,13 @@ int server_read(server_ctx_t * sctx, struct kevent *event){
       abort();
     }
   }
+  x_bytes_read_connection_t(conn) = bytes_read_connection_t(conn) + n;
   //TODO: print bytes read
   //printf("read %zu bytes\n", n);
   return 0;
 }
 
 int server_accept(server_ctx_t * sctx, struct kevent *event){
-  printf("server_accept\n");
   socklen_t remote_size;
   int client_fd;
   struct sockaddr_un remote;
@@ -138,18 +140,16 @@ int server_accept(server_ctx_t * sctx, struct kevent *event){
   connection_t * conn = (connection_t * )event->udata;
   assert(conn != NULL);
   
-  printf("accept conn->fd: %d\n", fd_connection_t(conn));
   if(fd_connection_t(conn) != fd_server_ctx_t(sctx)){
-    printf("not a valid accept event. fix this?\n");
+    printf("unexpected: not a valid accept event\n");
     return 0;
   }
   
   remote_size = sizeof(remote);
-  //todo use conn->fd!
+  //(todo use conn->fd)
   client_fd = accept(fd_server_ctx_t(sctx), (struct sockaddr *)&remote, &remote_size);
   if (client_fd < 0) {
     if (errno == EWOULDBLOCK || errno == EAGAIN) {
-      printf("accept: EWOULDBLOCK\n");
       return 0;
     }
     perror("accept");
@@ -174,6 +174,7 @@ int server_accept(server_ctx_t * sctx, struct kevent *event){
   x_fd_connection_t(client_conn) = client_fd;
   x_read_connection_t(client_conn) = server_read;
   x_disconnect_connection_t(client_conn) = server_disconnect;
+  x_bytes_read_connection_t(client_conn) = 0;
   server_update_connection(sctx, client_fd, EVFILT_READ, EV_ADD | EV_ENABLE, client_conn);
 
   return 1;
@@ -196,7 +197,6 @@ void server_run(server_ctx_t * sctx){
       perror("kevent");
       abort();
     }
-    //why
     x_num_connections_server_ctx_t(sctx) = 0;
 
     for (int i = 0; i < new_events; i++) {
