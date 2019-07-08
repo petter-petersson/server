@@ -229,6 +229,22 @@ server_ctx_t * server_init(server_ctx_t * server_ctx, char * sock_path){
   int o = 1;
   setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &o, sizeof(o));
 
+  // setting timeout options on socket:
+  struct timeval timeout;
+  timeout.tv_sec = 10;
+  timeout.tv_usec = 0;
+  if (setsockopt (s, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
+        sizeof(timeout)) < 0) {
+    perror("setsockopt");
+    exit(errno);
+  }
+  if (setsockopt (s, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout,
+        sizeof(timeout)) < 0) {
+    perror("setsockopt");
+    exit(errno);
+  }
+
+
   memset(&local, 0, sizeof(local));
   local.sun_family = AF_UNIX;
   strncpy(local.sun_path, sock_path, sizeof(local.sun_path)-1);
@@ -250,8 +266,8 @@ server_ctx_t * server_init(server_ctx_t * server_ctx, char * sock_path){
     exit(errno);
   }
 
-  //default was 5
-  if (listen(s, 30) == -1) {
+  //usual value of 5 ignored, backlog max is 128 on BSD.
+  if (listen(s, 64) == -1) {
     perror("listen");
     exit(errno);
   }
