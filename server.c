@@ -229,14 +229,14 @@ void server_run(server_ctx_t * sctx){
       if (conn == NULL) continue;
       //todo: remove disconnect call since it seems to not
       //occur after recv returns 0
-      if (conn->disconnect != NULL && e->flags & EV_EOF) {
-        while (conn->disconnect(sctx, e));
+      if (disconnect_connection_t(conn) != NULL && e->flags & EV_EOF) {
+        while (disconnect_connection_t(conn)(sctx, e));
       }
-      if (conn->read != NULL && e->filter == EVFILT_READ) {
-        while (conn->read(sctx, e));
+      if (read_connection_t(conn) != NULL && e->filter == EVFILT_READ) {
+        while (read_connection_t(conn)(sctx, e));
       }
-      if (conn->write != NULL && e->filter == EVFILT_WRITE) {
-        while (conn->write(sctx, e));
+      if (write_connection_t(conn) != NULL && e->filter == EVFILT_WRITE) {
+        while (write_connection_t(conn)(sctx, e));
       }
     }
   }
