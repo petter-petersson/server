@@ -90,6 +90,27 @@ int server_disconnect(server_ctx_t * sctx, struct kevent *event){
   return 0;
 }
 
+int server_write(server_ctx_t * sctx, struct kevent *event){
+
+  assert(event != NULL);
+  assert(event->udata != NULL);
+  connection_t * conn = (connection_t *)event->udata;
+  int clientfd = fd_connection_t(conn);
+
+  assert(fd_connection_t(conn) == event->ident);
+  printf("server_write %ld\n", event->ident);
+  if(event->filter & EVFILT_WRITE) printf("write\n");
+  if(event->filter & EVFILT_READ) printf("read\n");
+  //
+  //server_update_connection(sctx, event->ident, EVFILT_READ, EV_DELETE, NULL);
+  //close(clientfd);
+  //server_update_connection(sctx, event->ident, EVFILT_READ, EV_DELETE, conn);
+  server_update_connection(sctx, event->ident, EVFILT_WRITE, EV_DELETE, conn);
+  close(clientfd);
+  free(conn);
+  return 0;
+}
+
 int server_read(server_ctx_t * sctx, struct kevent *event){
   char buffer[BUFSIZ];
   ssize_t n = 0;
@@ -116,9 +137,11 @@ int server_read(server_ctx_t * sctx, struct kevent *event){
     if (n == 0) {
       
       printf("%ld is done. Read %d bytes\n", event->ident, bytes_read_connection_t(conn));
-      server_update_connection(sctx, event->ident, EVFILT_READ, EV_DELETE, NULL);
-      close(clientfd);
-      free(conn);
+      //TODO: one shot?
+      server_update_connection(sctx, event->ident, EVFILT_READ, EV_DISABLE, conn);
+      server_update_connection(sctx, event->ident, EVFILT_WRITE, EV_ADD | EV_ENABLE, conn);
+      //close(clientfd);
+      //free(conn);
 
       return 0;
     } else {
@@ -127,8 +150,6 @@ int server_read(server_ctx_t * sctx, struct kevent *event){
     }
   }
   x_bytes_read_connection_t(conn) = bytes_read_connection_t(conn) + n;
-  //TODO: print bytes read
-  //printf("read %zu bytes\n", n);
   return 0;
 }
 
@@ -173,9 +194,12 @@ int server_accept(server_ctx_t * sctx, struct kevent *event){
   }
   x_fd_connection_t(client_conn) = client_fd;
   x_read_connection_t(client_conn) = server_read;
+  x_write_connection_t(client_conn) = server_write;
   x_disconnect_connection_t(client_conn) = server_disconnect;
   x_bytes_read_connection_t(client_conn) = 0;
   server_update_connection(sctx, client_fd, EVFILT_READ, EV_ADD | EV_ENABLE, client_conn);
+  //??
+  //server_update_connection(sctx, client_fd, EVFILT_WRITE, EV_ADD, client_conn);
 
   return 1;
 }
@@ -205,11 +229,16 @@ void server_run(server_ctx_t * sctx){
       connection_t * conn = (connection_t *) e->udata;
 
       if (conn == NULL) continue;
+      //todo: remove disconnect call since it seems to not
+      //occur after recv returns 0
       if (conn->disconnect != NULL && e->flags & EV_EOF) {
         while (conn->disconnect(sctx, e));
       }
       if (conn->read != NULL && e->filter == EVFILT_READ) {
         while (conn->read(sctx, e));
+      }
+      if (conn->write != NULL && e->filter == EVFILT_WRITE) {
+        while (conn->write(sctx, e));
       }
     }
   }
@@ -308,6 +337,7 @@ int main(int argc, const char *argv[]) {
   connection_t server_connection = {
     .fd = fd_server_ctx_t(sctx),
     .read = server_accept,
+    .write = NULL,
     .disconnect = NULL
   };
   server_update_connection(sctx, fd_server_ctx_t(sctx), EVFILT_READ, EV_ADD | EV_ENABLE, &server_connection);
