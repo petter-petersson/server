@@ -9,6 +9,7 @@ def send_data
 
     f.each_byte do |byte|
       socket.send(byte.chr, 0)
+      sleep(0.3)
     end
   end
 
@@ -50,6 +51,20 @@ def send_data_chunk
   socket.close
 end
 
-send_data_chunk
+threads = []
+10.times do |i|
+  threads << Thread.new {
+    if i == 4 
+      send_data
+    else
+      send_data_chunk
+    end
+  }
+end
+
+threads.each do |t|
+  t.join
+end
+
 #send_data
 

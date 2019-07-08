@@ -101,7 +101,12 @@ int server_write(server_ctx_t * sctx, struct kevent *event){
   assert(fd_connection_t(conn) == event->ident);
   printf("server_write %ld\n", event->ident);
 
-  FILE * fd = fdopen(dup(clientfd), "w");
+  int d = dup(clientfd);
+  if (d < 0){
+    fprintf(stderr, "failed to dup client fd.\n");
+    goto out;
+  }
+  FILE * fd = fdopen(d, "w");
   if(fd){
     fprintf(fd,
         "Job <%d> init. received %d bytes in transfer. Goodbye.\n",
@@ -110,6 +115,8 @@ int server_write(server_ctx_t * sctx, struct kevent *event){
     fflush(fd);
     fclose(fd);
   }
+out:
+  printf("w: out\n");
   server_update_connection(sctx, event->ident, EVFILT_WRITE, EV_DELETE, conn);
   close(clientfd);
   free(conn);
@@ -228,6 +235,12 @@ void server_run(server_ctx_t * sctx){
       connection_t * conn = (connection_t *) e->udata;
 
       if (conn == NULL) continue;
+
+      if( e->flags & EV_ERROR){
+        perror("event");
+        printf("e->data: %ld\n", e->data);
+        continue;
+      }
       //todo: remove disconnect call since it seems to not
       //occur after recv returns 0
       if (disconnect_connection_t(conn) != NULL && e->flags & EV_EOF) {
@@ -327,6 +340,7 @@ int main(int argc, const char *argv[]) {
         break;
     }
   }
+  signal(SIGPIPE, SIG_IGN);
   //todo: alloc since we will destroy other resources anyway later on
   server_ctx_t server_context;
   server_ctx_t * sctx;
