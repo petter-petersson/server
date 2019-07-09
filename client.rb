@@ -52,13 +52,9 @@ def send_data_chunk
 end
 
 threads = []
-10.times do |i|
+100.times do |i|
   threads << Thread.new {
-    if i == 4 
-      send_data
-    else
-      send_data_chunk
-    end
+    send_data_chunk
   }
 end
 
