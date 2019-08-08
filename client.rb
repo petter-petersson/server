@@ -32,7 +32,7 @@ def send_words
   socket.close_write
   res = socket.read
   puts res
-  socket.clos
+  socket.close
 end
 
 def send_data_chunk

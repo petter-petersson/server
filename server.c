@@ -354,9 +354,7 @@ int main(int argc, const char *argv[]) {
     .disconnect = NULL
   };
   server_update_connection(sctx, fd_server_ctx_t(sctx), EVFILT_READ, EV_ADD | EV_ENABLE, &server_connection);
-  
   server_run(sctx);
-
 
   printf("Good bye.");
   return 0;
