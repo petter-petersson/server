@@ -3,6 +3,8 @@
 
 #include "mem_buf.h"
 
+#define DEFAULT_SOCK_PATH "/tmp/jamboree.sock"
+
 // file:///usr/local/share/doc/ImageMagick-6.5.7/www/api/blob.html
 // file:///usr/local/share/doc/ImageMagick-6.5.7/www/magick-core.html
 

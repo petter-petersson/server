@@ -6,47 +6,55 @@ DEBUG_FLAGS=-g -DDEBUG
 BUILD_DIR=release
 LDFLAGS = $(REL_LDFLAGS)
 
-.PHONY: clean test all debug_all debug mkdirs
+.PHONY: lib clean test all_tests lib debug_lib mkdirs dbg_image_server \
+	rel_image_server
 
-default: all
-
-ln:
-	ln -f -s $(BUILD_DIR)/image_server image_server
+default: lib
 
 mkdirs:
 	mkdir -p debug
 	mkdir -p release 
 
-debug: clean
-debug: CFLAGS += $(DEBUG_FLAGS)
-debug: LDFLAGS = $(DBG_LDFLAGS)
-debug: test
+test: clean
+test: CFLAGS += $(DEBUG_FLAGS)
+test: LDFLAGS = $(DBG_LDFLAGS)
+test: all_tests
 
-debug_all: clean
-debug_all: CFLAGS += $(DEBUG_FLAGS)
-debug_all: LDFLAGS = $(DBG_LDFLAGS)
-debug_all: mkdirs
-debug_all: BUILD_DIR=debug
-debug_all: all
-debug_all: ln
+debug_lib: CFLAGS += $(DEBUG_FLAGS)
+debug_lib: LDFLAGS = $(DBG_LDFLAGS)
+debug_lib: mkdirs
+debug_lib: BUILD_DIR=debug
+debug_lib: libserver.a
 
+lib: mkdirs
+lib: libserver.a 
 
-all: clean
-all: mkdirs
-all: image_server 
-all: ln
+dbg_image_server: debug_lib 
+dbg_image_server: BUILD_DIR=debug
+dbg_image_server: CFLAGS += $(DEBUG_FLAGS)
+dbg_image_server: LDFLAGS = $(DBG_LDFLAGS)
+dbg_image_server: image_server
+
+rel_image_server: lib 
+rel_image_server: image_server
 
 %.o: %.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
-test: mem_buf_test
+libserver.a: server.o
+	$(AR) rc $(BUILD_DIR)/$@ $^
+
+# TODO: this target should be 'private' in some way
+all_tests: mem_buf_test
 	./mem_buf_test
 
-image_server: server.o image.o mem_buf.o
-	$(CC) $(CFLAGS) $^ -o $(BUILD_DIR)/$@ $(LDFLAGS) $(LIBS)
+# TODO: this target should be 'private' in some way
+image_server: image.o mem_buf.o
+	$(CC) $(CFLAGS) $^ -o $(BUILD_DIR)/$@ $(LDFLAGS) -L./$(BUILD_DIR) $(LIBS) -lserver
+	ln -f -s $(BUILD_DIR)/image_server image_server
 
 mem_buf_test: test.o mem_buf.o mem_buf_test.o
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(LIBS)
 
 clean:
-	rm -rf *.o *.a *_test $(BUILD_DIR)/image_server 
+	rm -rf *.o *_test {debug,release}/{image_server,*.a} 
