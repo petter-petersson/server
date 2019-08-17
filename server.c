@@ -19,6 +19,7 @@
 #include <sys/time.h>
 
 #include "server.h"
+#include "connection.h"
 
 //TODO: remove accessors and have asserts at fn beginning instead?
 //
@@ -146,9 +147,6 @@ int server_read(server_ctx_t * sctx, struct kevent *event){
       printf("%ld is done. Read %d bytes\n", event->ident, bytes_read_connection_t(conn));
       server_update_connection(sctx, event->ident, EVFILT_READ, EV_DISABLE, conn);
       server_update_connection(sctx, event->ident, EVFILT_WRITE, EV_ADD | EV_ENABLE, conn);
-      //close(clientfd);
-      //free(conn);
-
       return 0;
     } else {
       perror("recv");
