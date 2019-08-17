@@ -229,6 +229,7 @@ void server_run(server_ctx_t * sctx){
     }
     x_num_connections_server_ctx_t(sctx) = 0;
 
+    //TODO: this part could be threaded
     for (int i = 0; i < new_events; i++) {
       struct kevent *e = &(events_server_ctx_t(sctx)[i]);
       assert(e != NULL);
