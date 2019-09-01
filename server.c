@@ -139,21 +139,9 @@ void server_run(server_ctx_t * sctx){
       }
       server_add_task_to_workqueue(w_queue, conn);
 
-      /*
-      if(e->flags & EV_EOF){
-        printf("kqueue EV_EOF\n");
-      } 
-      // e->filter == EVFILT_WRITE
-      */
-      //TODO!!! pass filter value to action/connection ??
-      // or - add default error handler, default read + write (again)
-      // to server ctx so we can switch on those here.. that would make impl.
-      // less versatile though - we still need an error handler in any event.
-      //
       //if (action_connection_t(conn) != NULL) {
       //  while (action_connection_t(conn)(sctx, conn));
       //}
-      //
     }
     pthread_mutex_lock(&(w_queue->mutex));
     //while(w_queue->t_head != NULL || w_queue->available_threads < 1){
