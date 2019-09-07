@@ -57,10 +57,9 @@ int test_append_long(test_context_t * tctx){
 
   mem_buf_t * target = mem_buf_create(64);
 
-  printf("strlen init: %d\n", strlen(LONG_STR));
-  printf("sizeof(uint8_t): %d\n", sizeof(uint8_t));
-  printf("sizeof(char): %d\n", sizeof(char));
-  int res;
+  printf("strlen init: %lu\n", strlen(LONG_STR));
+  printf("sizeof(uint8_t): %lu\n", sizeof(uint8_t));
+  printf("sizeof(char): %lu\n", sizeof(char));
   mem_buf_append(target, (uint8_t *)LONG_STR, strlen(LONG_STR));
   mem_buf_append(target, (uint8_t *)"\r\n", strlen("\r\n"));
 

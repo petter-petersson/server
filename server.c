@@ -18,9 +18,8 @@
 #include <sys/time.h>
 
 #include "server.h"
+#include "workqueue.h"
 
-//FIXME:
-workqueue_t * w_queue;
 //TODO: remove accessors and have asserts at fn beginning instead?
 
 void server_alloc_event(server_ctx_t * server_ctx) {
@@ -31,7 +30,13 @@ void server_alloc_event(server_ctx_t * server_ctx) {
 
   if (num_connections_server_ctx_t(server_ctx) >= avail_connections_server_ctx_t(server_ctx)) {
     int new_size = avail_connections_server_ctx_t(server_ctx) + SERVER_CTX_NUM_CONN_ALLOC;
-    m = realloc(events_server_ctx_t(server_ctx), new_size * sizeof(struct kevent));
+    if(new_size == SERVER_CTX_NUM_CONN_ALLOC){
+      printf("event malloc\n");
+      m = malloc(new_size * sizeof(struct kevent));
+    } else {
+      printf("event realloc\n");
+      m = realloc(events_server_ctx_t(server_ctx), new_size * sizeof(struct kevent));
+    }
     if(m){
       x_events_server_ctx_t(server_ctx) = m;
       x_avail_connections_server_ctx_t(server_ctx) = new_size;
@@ -74,15 +79,16 @@ int server_accept(server_ctx_t * sctx, connection_t * conn){
     exit(errno);
   }
 
+  //TODO: store in a bst too/instead - so we can dealloc properly at shutdown
   connection_t * client_conn = malloc(sizeof(connection_t));
   if(client_conn == NULL){
     perror("malloc");
     exit(errno);
   }
   x_fd_connection_t(client_conn) = client_fd;
-  //TODO: store in a bst instead of udata?
 
   //setting default read write methods
+  //TODO: restore read/write/error handlers
   x_action_connection_t(client_conn) = default_action_server_ctx_t(sctx);
   
   x_bytes_read_connection_t(client_conn) = 0;
@@ -93,9 +99,33 @@ int server_accept(server_ctx_t * sctx, connection_t * conn){
   return 1;
 }
 
-void server_run(server_ctx_t * sctx){
+void server_destroy(server_ctx_t * sctx){
+  printf("server destroy.\n");
+  for (int i = 0; i < avail_connections_server_ctx_t(sctx); i++){
+    printf("looping through connections: %d\n", i);
 
-  printf("server_run\n");
+    struct kevent e = events_server_ctx_t(sctx)[i];
+
+    //FIXME! udata can be garbage from allocation process - we must keep track of our conns ourselves 
+    connection_t * conn = (connection_t *) e.udata;
+    if(conn != NULL){ 
+      printf("destroying connection with fd %d\n", conn->fd);
+      if (fd_connection_t(conn) > 0 && (fcntl(fd_connection_t(conn), F_GETFD) != -1 || errno != EBADF)){
+        printf("connection %d is open, attempting to close\n", fd_connection_t(conn));
+        close(fd_connection_t(conn));
+
+        //unpredictable FIXME
+        //free(conn);
+        //conn = NULL;
+      }
+    }
+  }
+  free(events_server_ctx_t(sctx));
+  //TMP remove
+  sleep(2);
+}
+
+void server_run(server_ctx_t * sctx){
   int new_events;
 
   while (1) {
@@ -107,9 +137,11 @@ void server_run(server_ctx_t * sctx){
                         NULL);
 
     if (new_events < 0) {
+      //control->c
       perror("kevent");
-      abort();
+      goto out;
     }
+
     x_num_connections_server_ctx_t(sctx) = 0;
 
     for (int i = 0; i < new_events; i++) {
@@ -117,16 +149,23 @@ void server_run(server_ctx_t * sctx){
       struct kevent *e = &(events_server_ctx_t(sctx)[i]);
       assert(e != NULL);
 
+      if( e->flags & EV_ERROR){
+        //never called afaik
+        perror("event");
+        printf("e->data: %ld\n", e->data);
+        //TODO exec an error handler?
+        continue;
+      }
+      if( e->filter & EVFILT_PROC && e->fflags & NOTE_SIGNAL){
+        //never called remove
+        printf("got a signal\n");
+      }
+
       connection_t * conn = (connection_t *) e->udata;
       //log this if this happens
       if (conn == NULL) continue;
 
-      if( e->flags & EV_ERROR){
-        perror("event");
-        printf("e->data: %ld\n", e->data);
-        //TODO exec an error handler
-        continue;
-      }
+
       assert(conn->fd == e->ident);
       
       if(e->ident != sctx->fd){
@@ -137,25 +176,38 @@ void server_run(server_ctx_t * sctx){
           abort();
         }
       }
-      server_add_task_to_workqueue(w_queue, conn);
 
-      //if (action_connection_t(conn) != NULL) {
-      //  while (action_connection_t(conn)(sctx, conn));
-      //}
+      server_wq_arg_t * task = (server_wq_arg_t *) malloc(sizeof(server_wq_arg_t));
+      if(task == NULL) {
+        perror("malloc");
+        abort();
+      }
+      task->sctx = sctx;
+      task->conn = conn;
+      workqueue_add_task(sctx->w_queue, server_dispatch_connection_action, task);
     }
-    pthread_mutex_lock(&(w_queue->mutex));
-    //while(w_queue->t_head != NULL || w_queue->available_threads < 1){
-    while(w_queue->available_threads < 1){
-      printf("waiting for available threads\n");
-      pthread_cond_wait(&(w_queue->thread_available), &(w_queue->mutex));
-    }
-    pthread_mutex_unlock(&(w_queue->mutex));
   }
+
+out:
+  workqueue_destroy(sctx->w_queue, NULL, NULL);
+  printf("shutting down.\n");
+  server_destroy(sctx);
+}
+
+void server_sig_break_loop(){
+  //kevent will throw an error *sometimes* depending on state - see server_run
+  //TODO: we need to stop loop too
+  printf("sig break\n");
 }
 
 server_ctx_t * server_init(server_ctx_t * server_ctx, char * sock_path){
   struct sockaddr_un local;
   int s;
+
+  if (signal(SIGINT, server_sig_break_loop) == SIG_ERR){
+    printf("signal");
+    exit(1);
+  }
 
   x_socket_path_server_ctx_t(server_ctx) = sock_path;
   x_queue_server_ctx_t(server_ctx) = kqueue();
@@ -182,7 +234,6 @@ server_ctx_t * server_init(server_ctx_t * server_ctx, char * sock_path){
     exit(errno);
   }
 
-
   memset(&local, 0, sizeof(local));
   local.sun_family = AF_UNIX;
   strncpy(local.sun_path, sock_path, sizeof(local.sun_path)-1);
@@ -205,42 +256,13 @@ server_ctx_t * server_init(server_ctx_t * server_ctx, char * sock_path){
   }
 
   //usual value of 5 ignored, backlog max is 128 on BSD.
-  //this value is only a request too.
-  if (listen(s, 64) == -1) {
+  if (listen(s, 32) == -1) {
     perror("listen");
     exit(errno);
   }
 
-  //just one workqueue to begin with
-  //FIXME free / destroy method (+ init method) + move to separate files!
-  w_queue = (workqueue_t *) malloc(sizeof(workqueue_t));
-  if(w_queue == NULL){
-    fprintf(stderr, "Unable to create workqueue\n");
-    abort();
-  }
-  w_queue->t_head = NULL;
-  w_queue->t_tail = NULL;
-  pthread_mutex_init(&(w_queue->mutex), NULL);
-  pthread_cond_init(&(w_queue->q_not_empty), NULL);
-  pthread_cond_init(&(w_queue->thread_available), NULL);
-
-  w_queue->sctx = server_ctx;
-
-  //TODO: constant
-  int num_threads = 19;
-  w_queue->work_threads = (pthread_t *)malloc(num_threads * sizeof(pthread_t));
-  if(w_queue->work_threads == NULL) {
-    perror("malloc");
-    abort();
-  }
-  for(int i = 0; i < num_threads; i++) {
-    if (pthread_create(&(w_queue->work_threads[i]), NULL, server_thread_work, w_queue) != 0) {
-      perror("pthread_created");
-      abort();
-    }
-  } 
-  w_queue->available_threads = num_threads;
-  //END w_queue
+  workqueue_t * w_queue = workqueue_init(10);
+  server_ctx->w_queue = w_queue;
 
   x_fd_server_ctx_t(server_ctx) = s;
   x_avail_connections_server_ctx_t(server_ctx) = 0;
@@ -262,81 +284,23 @@ server_ctx_t * server_init(server_ctx_t * server_ctx, char * sock_path){
   return server_ctx;
 }
 
-void server_add_task_to_workqueue(workqueue_t * w_queue, connection_t * conn) {
+void server_dispatch_connection_action(void * arg){
 
-  //printf("server_add_task_to_workqueue\n");
+  server_wq_arg_t * task = (server_wq_arg_t *) arg;
+  assert(task != NULL);
+  connection_t * conn = (connection_t *) task->conn;
+  assert(conn != NULL);
+  server_ctx_t * sctx = (server_ctx_t *) task->sctx;
+  assert(sctx != NULL);
 
-  assert(w_queue != NULL);
-
-  task_t *current_task;
-  current_task = (task_t *) malloc(sizeof(task_t));
-  if(current_task == NULL) {
-    fprintf(stderr, "Failed to create task\n");
-    return;
+  if (action_connection_t(conn) != NULL) {
+    while (action_connection_t(conn)(sctx, conn));
   }
-  current_task->connection = conn;
-  current_task->next = NULL;
 
-  pthread_mutex_lock(&(w_queue->mutex));
-
-  if (w_queue->t_head == NULL) {
-    w_queue->t_head = current_task;
-  } else {
-    w_queue->t_tail->next = current_task;
-  }
-  w_queue->t_tail = current_task;
-
-  //WORKQUEUE_DISPLAY_TASKS(w_queue);
-  pthread_cond_signal(&(w_queue->q_not_empty));
-  pthread_mutex_unlock(&(w_queue->mutex));
+  free(task);
 }
 
-void * server_thread_work(void * arg){
-  workqueue_t * wq = (workqueue_t *) arg;
-  task_t * current;
-
-  printf("server_thread_work\n");
-  assert(wq != NULL);
-
-  while(1) {
-
-    pthread_mutex_lock(&(wq->mutex));
-    while(wq->t_head == NULL){
-      pthread_cond_wait(&(wq->q_not_empty), &(wq->mutex));
-    }
-
-    current = wq->t_head;
-    wq->t_head = current->next;
-
-    if (wq->t_head == NULL) {
-      wq->t_tail = NULL;
-    }
-
-    wq->available_threads--;
-    assert(wq->available_threads >= 0);
-    
-    pthread_mutex_unlock(&(wq->mutex));
-
-    //printf("exec connection methods %p from %p\n", current, pthread_self());
-
-    connection_t * conn = current->connection;
-    assert(conn != NULL);
-
-    if (action_connection_t(conn) != NULL) {
-      while (action_connection_t(conn)(wq->sctx, conn));
-    }
-    //todo: on_exec_complete(pthread_t, arg)  ???
-
-    pthread_mutex_lock(&(wq->mutex));
-    wq->available_threads++;
-    pthread_cond_signal(&(w_queue->thread_available));
-    pthread_mutex_unlock(&(wq->mutex));
-    
-    free(current);
-    current = NULL;
-  }
-}
-
+//TODO: improve this interface
 void server_connection_enable_read(server_ctx_t * sctx, connection_t * conn) {
   struct kevent evSet;
   assert(conn != NULL);
@@ -396,6 +360,7 @@ void server_connection_delete_write(server_ctx_t * sctx, connection_t * conn) {
     perror("kevent");
     abort();
   }
+  printf("closing and deleting %d\n", conn->fd);
   close(clientfd);
   free(conn);
 }

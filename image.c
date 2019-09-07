@@ -54,7 +54,6 @@ int write_command(server_ctx_t * sctx, connection_t * conn){
     fclose(fd);
   }
 out:
-  printf("w: out\n");
   server_connection_delete_write(sctx, conn);
   return 0;
 }
