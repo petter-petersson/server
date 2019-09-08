@@ -1,7 +1,7 @@
 # rubocop:disable all
 require 'socket'
 
-def send_data
+def send_chunks
   sock = "/tmp/jamboree.sock"
   socket = UNIXSocket.new(sock)
 
@@ -19,24 +19,28 @@ def send_data
   end
 end
 
+def send(data)
+  sock = "/tmp/jamboree.sock"
+  socket = UNIXSocket.new(sock)
+  socket.send(data, 0)
+  socket.close_write
+  res = socket.read
+  puts res
+  socket.close
+end
+
 threads = []
-sock = "/tmp/jamboree.sock"
 
 File.open('image.jpg', 'r') do |f|
   data = f.read
 
   10.times do |t|
     30.times do |i|
-      threads << Thread.new {
-        send_data
-
-        #socket = UNIXSocket.new(sock)
-        #socket.send(data, 0)
-        #socket.close_write
-        #res = socket.read
-        #puts res
-        #socket.close
-      }
+      if i % 2 == 0
+        threads << Thread.new { send_chunks }
+      else
+        threads << Thread.new { send(data) }
+      end 
     end
 
     threads.each do |tr|
