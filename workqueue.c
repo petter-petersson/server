@@ -97,6 +97,8 @@ void workqueue_add_task(workqueue_t * w_queue, void (*work_method)(void *), void
 }
 
 void workqueue_destroy(workqueue_t * w_queue, void (*destroy_each_method)(task_t *, void *), void *arg) {
+  assert(w_queue != NULL);
+
   pthread_mutex_lock(&(w_queue->mutex));
   task_t * tmp = w_queue->t_head; //does it matter
   w_queue->t_head = NULL;
