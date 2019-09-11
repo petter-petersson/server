@@ -5,10 +5,9 @@
 #include <pthread.h>
 
 #include "workqueue.h"
+#include "connection.h"
 
 #define SERVER_CTX_NUM_CONN_ALLOC 8
-
-struct connection_s; //forward decl.
 
 typedef struct server_ctx_s {
   int queue;
@@ -17,33 +16,14 @@ typedef struct server_ctx_s {
   int avail_connections;
   int num_connections;
   struct kevent * events;
-  int (*default_action) (struct server_ctx_s *sctx, struct connection_s * conn);
+  int (*default_action) (struct server_ctx_s *sctx, connection_t * conn);
   workqueue_t * w_queue;
 } server_ctx_t;
 
 typedef struct server_wq_arg_s {
   server_ctx_t * sctx;
-  struct connection_s * conn;
+  connection_t * conn;
 } server_wq_arg_t;
-
-//separate file + init & destroy method?
-typedef struct connection_s {
-  int fd; 
-  int bytes_read;
-  int (*action) (server_ctx_t *sctx, struct connection_s * conn);
-} connection_t;
-
-
-//connection_t accessors
-#define x_fd_connection_t(_n) (deref_connection_t(_n)->fd)
-#define fd_connection_t(_n) ((void)0, x_fd_connection_t(_n))
-
-#define x_action_connection_t(_n) (deref_connection_t(_n)->action)
-#define action_connection_t(_n) ((void)0, x_action_connection_t(_n))
-
-#define x_bytes_read_connection_t(_n) (deref_connection_t(_n)->bytes_read)
-#define bytes_read_connection_t(_n) ((void)0, x_bytes_read_connection_t(_n))
-
 
 #ifdef DEBUG
 #define deref_server_ctx_t(_n) (assert((_n)!=0), (_n))

@@ -28,6 +28,7 @@ void server_alloc_event(server_ctx_t * server_ctx) {
 
   //TODO: when deleting we should downsize
   x_num_connections_server_ctx_t(server_ctx) = num_connections_server_ctx_t(server_ctx) + 1;
+  printf("num events: %d\n", num_connections_server_ctx_t(server_ctx));
 
   if (num_connections_server_ctx_t(server_ctx) >= avail_connections_server_ctx_t(server_ctx)) {
     int new_size = avail_connections_server_ctx_t(server_ctx) + SERVER_CTX_NUM_CONN_ALLOC;
@@ -143,6 +144,7 @@ void server_run(server_ctx_t * sctx){
       goto out;
     }
 
+    //why
     x_num_connections_server_ctx_t(sctx) = 0;
 
     for (int i = 0; i < new_events; i++) {
@@ -286,6 +288,7 @@ server_ctx_t * server_init(server_ctx_t * server_ctx, char * sock_path){
 }
 
 void server_dispatch_connection_action(void * arg){
+
 
   server_wq_arg_t * task = (server_wq_arg_t *) arg;
   assert(task != NULL);
