@@ -11,12 +11,6 @@ typedef struct connection_s {
   int (*action) (struct server_ctx_s *sctx, struct connection_s * conn);
 } connection_t;
 
-typedef struct connection_arg_s {
-  struct server_ctx_s * sctx;
-  struct connection_s * conn;
-} connection_arg_t;
-
-
 #define x_fd_connection_t(_n) (deref_connection_t(_n)->fd)
 #define fd_connection_t(_n) ((void)0, x_fd_connection_t(_n))
 
