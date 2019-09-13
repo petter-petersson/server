@@ -18,6 +18,7 @@ typedef struct server_ctx_s {
   struct kevent * events;
   int (*default_action) (struct server_ctx_s *sctx, connection_t * conn);
   workqueue_t * w_queue;
+  connection_manager_t * connection_manager;
 } server_ctx_t;
 
 typedef struct server_wq_arg_s {
@@ -52,6 +53,9 @@ typedef struct server_wq_arg_s {
 
 #define x_default_action_server_ctx_t(_n) (deref_server_ctx_t(_n)->default_action)
 #define default_action_server_ctx_t(_n) ((void)0, x_default_action_server_ctx_t(_n))
+
+#define x_connection_manager_server_ctx_t(_n) (deref_server_ctx_t(_n)->connection_manager)
+#define connection_manager_server_ctx_t(_n) ((void)0, x_connection_manager_server_ctx_t(_n))
 
 #define server_error(...) do { \
   fprintf(stderr, __VA_ARGS__); exit(1); \

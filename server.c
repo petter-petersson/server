@@ -81,18 +81,23 @@ int server_accept(server_ctx_t * sctx, connection_t * conn){
     exit(errno);
   }
 
+  connection_t * client_conn = connection_manager_get_connection(
+      connection_manager_server_ctx_t(sctx), client_fd);
+
   //TODO: store in a bst too/instead - so we can dealloc properly at shutdown
+  /*
   connection_t * client_conn = malloc(sizeof(connection_t));
   if(client_conn == NULL){
     perror("malloc");
     exit(errno);
   }
-  x_fd_connection_t(client_conn) = client_fd;
-
+  */
   //setting default read write methods
   //TODO: restore read/write/error handlers
+  //TODO: set in connection_manager_get_connection when creating?
+  //      or just have a create method.
   x_action_connection_t(client_conn) = default_action_server_ctx_t(sctx);
-  
+  //TODO move to connection_manager_get_connection
   x_bytes_read_connection_t(client_conn) = 0;
   
   server_alloc_event(sctx);
@@ -103,6 +108,7 @@ int server_accept(server_ctx_t * sctx, connection_t * conn){
 
 void server_destroy(server_ctx_t * sctx){
   printf("server destroy.\n");
+  /*
   for (int i = 0; i < avail_connections_server_ctx_t(sctx); i++){
     printf("looping through connections: %d\n", i);
 
@@ -122,6 +128,8 @@ void server_destroy(server_ctx_t * sctx){
       }
     }
   }
+  */
+  connection_manager_destroy(connection_manager_server_ctx_t(sctx));
   free(events_server_ctx_t(sctx));
   //TMP remove
   sleep(2);
@@ -153,22 +161,27 @@ void server_run(server_ctx_t * sctx){
       assert(e != NULL);
 
       if( e->flags & EV_ERROR){
-        //never called afaik
+        //never called?
         perror("event");
         printf("e->data: %ld\n", e->data);
         //TODO exec an error handler?
         continue;
       }
+      /*
       if( e->filter & EVFILT_PROC && e->fflags & NOTE_SIGNAL){
         //never called remove
         printf("got a signal\n");
       }
+      */
 
-      connection_t * conn = (connection_t *) e->udata;
-      //log this if this happens
-      if (conn == NULL) continue;
+      //connection_t * conn = (connection_t *) e->udata;
+      connection_t * conn = connection_manager_get_connection(
+        connection_manager_server_ctx_t(sctx), e->ident);
 
-
+      if(!conn){
+        fprintf(stderr, "Connection manager did not return connection obj for fd %d\n", e->ident);
+        abort();
+      }
       assert(conn->fd == e->ident);
       
       if(e->ident != sctx->fd){
@@ -272,13 +285,19 @@ server_ctx_t * server_init(server_ctx_t * server_ctx, char * sock_path){
   x_num_connections_server_ctx_t(server_ctx) = 0;
 
 
+  x_connection_manager_server_ctx_t(server_ctx) = connection_manager_init();
+  //or maybe create connection after all..
+  connection_t * server_connection = connection_manager_get_connection(
+      connection_manager_server_ctx_t(server_ctx), s);
+
   //TODO: free this! (avoiding circular dependencies)
+  /*
   connection_t * server_connection = malloc(sizeof(connection_t));
   if(server_connection == NULL){
     perror("malloc");
     exit(errno);
   }
-  x_fd_connection_t(server_connection) = fd_server_ctx_t(server_ctx);
+  */
   x_action_connection_t(server_connection) = server_accept;
 
   server_alloc_event(server_ctx);
@@ -364,7 +383,10 @@ void server_connection_delete_write(server_ctx_t * sctx, connection_t * conn) {
     perror("kevent");
     abort();
   }
+  /*
   printf("closing and deleting %d\n", conn->fd);
   close(clientfd);
   free(conn);
+  */
+  connection_manager_delete_connection(connection_manager_server_ctx_t(sctx), conn);
 }
