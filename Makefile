@@ -43,7 +43,7 @@ rel_image_server: image_server
 %.o: %.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
-libserver.a: server.o workqueue.o
+libserver.a: server.o workqueue.o connection.o
 	$(AR) rc $(BUILD_DIR)/$@ $^
 
 # TODO: this target should be 'private' in some way

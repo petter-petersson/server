@@ -94,10 +94,8 @@ int server_accept(server_ctx_t * sctx, connection_t * conn){
   */
   //setting default read write methods
   //TODO: restore read/write/error handlers
-  //TODO: set in connection_manager_get_connection when creating?
-  //      or just have a create method.
+  //TODO: create method so we don't have to do this?
   x_action_connection_t(client_conn) = default_action_server_ctx_t(sctx);
-  //TODO move to connection_manager_get_connection
   x_bytes_read_connection_t(client_conn) = 0;
   
   server_alloc_event(sctx);
@@ -179,7 +177,7 @@ void server_run(server_ctx_t * sctx){
         connection_manager_server_ctx_t(sctx), e->ident);
 
       if(!conn){
-        fprintf(stderr, "Connection manager did not return connection obj for fd %d\n", e->ident);
+        fprintf(stderr, "Connection manager did not return connection obj for fd %ld\n", e->ident);
         abort();
       }
       assert(conn->fd == e->ident);
