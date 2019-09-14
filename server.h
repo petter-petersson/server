@@ -7,15 +7,12 @@
 #include "workqueue.h"
 #include "connection.h"
 
-#define SERVER_CTX_NUM_EVENTS 64
+#define SERVER_CTX_NUM_EVENTS 24
 
 typedef struct server_ctx_s {
   int queue;
   int fd;
   char * socket_path;
-  //int avail_connections;
-  //int num_connections;
-  //struct kevent events[SERVER_CTX_NUM_EVENTS];
   int (*default_action) (struct server_ctx_s *sctx, connection_t * conn);
   workqueue_t * w_queue;
   connection_manager_t * connection_manager;
@@ -39,15 +36,6 @@ typedef struct server_wq_arg_s {
 
 #define x_socket_path_server_ctx_t(_n) (deref_server_ctx_t(_n)->socket_path)
 #define socket_path_server_ctx_t(_n) ((void)0, x_socket_path_server_ctx_t(_n))
-
-//#define x_num_connections_server_ctx_t(_n) (deref_server_ctx_t(_n)->num_connections)
-//#define num_connections_server_ctx_t(_n) ((void)0, x_num_connections_server_ctx_t(_n))
-
-//#define x_avail_connections_server_ctx_t(_n) (deref_server_ctx_t(_n)->avail_connections)
-//#define avail_connections_server_ctx_t(_n) ((void)0, x_avail_connections_server_ctx_t(_n))
-
-//#define x_events_server_ctx_t(_n) (deref_server_ctx_t(_n)->events)
-//#define events_server_ctx_t(_n) ((void)0, x_events_server_ctx_t(_n))
 
 #define x_default_action_server_ctx_t(_n) (deref_server_ctx_t(_n)->default_action)
 #define default_action_server_ctx_t(_n) ((void)0, x_default_action_server_ctx_t(_n))
