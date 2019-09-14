@@ -28,10 +28,8 @@ typedef struct server_wq_arg_s {
 
 #ifdef DEBUG
 #define deref_server_ctx_t(_n) (assert((_n)!=0), (_n))
-#define deref_connection_t(_n) (assert((_n)!=0), (_n))
 #else
 #define deref_server_ctx_t(_n) (_n)
-#define deref_connection_t(_n) (_n)
 #endif
 #define x_queue_server_ctx_t(_n) (deref_server_ctx_t(_n)->queue)
 #define queue_server_ctx_t(_n) ((void)0, x_queue_server_ctx_t(_n))

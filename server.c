@@ -84,19 +84,9 @@ int server_accept(server_ctx_t * sctx, connection_t * conn){
   connection_t * client_conn = connection_manager_get_connection(
       connection_manager_server_ctx_t(sctx), client_fd);
 
-  //TODO: store in a bst too/instead - so we can dealloc properly at shutdown
-  /*
-  connection_t * client_conn = malloc(sizeof(connection_t));
-  if(client_conn == NULL){
-    perror("malloc");
-    exit(errno);
-  }
-  */
-  //setting default read write methods
   //TODO: restore read/write/error handlers
   //TODO: create method so we don't have to do this?
   x_action_connection_t(client_conn) = default_action_server_ctx_t(sctx);
-  x_bytes_read_connection_t(client_conn) = 0;
   
   server_alloc_event(sctx);
   server_connection_enable_read(sctx, client_conn);
