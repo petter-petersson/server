@@ -37,7 +37,7 @@ connection_t * connection_manager_get_connection(connection_manager_t * m, int f
 
   } else {
     if (value_bst_node_t(node) == NULL){
-      //printf("get connection %d: node value is null\n", fd);
+      printf("get connection %d: node value is null\n", fd);
       conn = connection_create(fd);
       x_value_bst_node_t(node) = conn;
     } else {

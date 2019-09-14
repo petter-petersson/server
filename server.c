@@ -96,31 +96,10 @@ int server_accept(server_ctx_t * sctx, connection_t * conn){
 
 void server_destroy(server_ctx_t * sctx){
   printf("server destroy.\n");
-  /*
-  for (int i = 0; i < avail_connections_server_ctx_t(sctx); i++){
-    printf("looping through connections: %d\n", i);
-
-    struct kevent e = events_server_ctx_t(sctx)[i];
-
-    //FIXME! udata can be garbage from allocation process - we must keep track of our conns ourselves 
-    connection_t * conn = (connection_t *) e.udata;
-    if(conn != NULL){ 
-      printf("destroying connection with fd %d\n", conn->fd);
-      if (fd_connection_t(conn) > 0 && (fcntl(fd_connection_t(conn), F_GETFD) != -1 || errno != EBADF)){
-        printf("connection %d is open, attempting to close\n", fd_connection_t(conn));
-        close(fd_connection_t(conn));
-
-        //unpredictable FIXME
-        //free(conn);
-        //conn = NULL;
-      }
-    }
-  }
-  */
+  //TMP remove(?)
+  sleep(2);
   connection_manager_destroy(connection_manager_server_ctx_t(sctx));
   free(events_server_ctx_t(sctx));
-  //TMP remove
-  sleep(2);
 }
 
 void server_run(server_ctx_t * sctx){
