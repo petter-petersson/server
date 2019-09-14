@@ -1,5 +1,5 @@
 -include config.mk
-override CFLAGS+=-std=c99 -D_GNU_SOURCE
+override CFLAGS+=-std=c99 -D_GNU_SOURCE -Wall
 
 #TODO: use -lthreadpool instead as before?
 LIBS= -lpthread -lbtree #-ltoken_generator

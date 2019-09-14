@@ -9,7 +9,7 @@
 
 connection_t * connection_create(int fd) {
   connection_t * conn;
-  conn = malloc(sizeof(connection_t));
+  conn = (connection_t *) malloc(sizeof(connection_t));
   if(conn == NULL){
     //TODO: uniform error handling
     perror("malloc");
@@ -28,9 +28,11 @@ connection_t * connection_manager_get_connection(connection_manager_t * m, int f
   assert(m != NULL);
 
   tree = m->store;
+  pthread_mutex_lock(&(m->mutex));
   node = bst_find(tree->root, fd);
 
   if(node == NULL){
+    printf("creating conn for %d\n", fd);
     conn = connection_create(fd);
     bst_add(tree, fd, conn);
 
@@ -42,7 +44,7 @@ connection_t * connection_manager_get_connection(connection_manager_t * m, int f
       conn = (connection_t * ) value_bst_node_t(node);
     }
   }
-
+  pthread_mutex_unlock(&(m->mutex));
   return conn;
 }
 
@@ -54,6 +56,7 @@ connection_manager_t * connection_manager_init() {
     exit(errno);
   }
   manager->store = bst_init();
+  pthread_mutex_init(&(manager->mutex), NULL);
   return manager;
 }
 
@@ -77,13 +80,16 @@ void connection_manager_destroy(connection_manager_t * connection_manager){
 
   bst_traverse(connection_manager->store->root, connection_manager_delete_connection_for_node, NULL);
   bst_free(connection_manager->store);
+  pthread_mutex_destroy(&(connection_manager->mutex));
   free(connection_manager);
 }
 
 void connection_manager_delete_connection(connection_manager_t * m, connection_t * conn){
+  //FIXME: we need a lock since this will be called from a thread
   assert(m != NULL);
   assert(conn != NULL);
   assert(m->store != NULL);
+  pthread_mutex_lock(&(m->mutex));
   bst_node_t * node = bst_find(m->store->root, fd_connection_t(conn));
 
   if (fd_connection_t(conn) > 0 && (fcntl(fd_connection_t(conn), F_GETFD) != -1 || errno != EBADF)){
@@ -93,5 +99,5 @@ void connection_manager_delete_connection(connection_manager_t * m, connection_t
   if(node){
       x_value_bst_node_t(node) = NULL;
   }
-
+  pthread_mutex_unlock(&(m->mutex));
 }

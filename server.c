@@ -92,7 +92,11 @@ void server_run(server_ctx_t * sctx){
       goto out;
     }
 
-    for (int i = 0; i < new_events; i++) {
+    //printf("new events: %d\n", new_events);
+    for (int i = 0; i < new_events && i < SERVER_CTX_NUM_EVENTS-1; i++) {
+
+      //printf("event list: %d\n", i);
+      assert(i < (SERVER_CTX_NUM_EVENTS-1));
 
       struct kevent e = events[i];
 

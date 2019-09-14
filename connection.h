@@ -2,6 +2,7 @@
 #define __CONNECTION_H
 
 #include <assert.h>
+#include <pthread.h>
 #include "binary_search_tree.h"
 
 struct server_ctx_s; //fwd
@@ -13,6 +14,7 @@ typedef struct connection_s {
 } connection_t;
 
 typedef struct connection_manager_s {
+  pthread_mutex_t mutex;
   bst_t * store;
 } connection_manager_t;
 
