@@ -21,33 +21,9 @@
 //TODO: update threadpool lib and remove
 #include "workqueue.h"
 
+//tmp
+struct kevent events[SERVER_CTX_NUM_EVENTS];
 //TODO: remove accessors and have asserts at fn beginning instead?
-
-void server_alloc_event(server_ctx_t * server_ctx) {
-  struct kevent *m;
-
-  //TODO: when deleting we should downsize
-  x_num_connections_server_ctx_t(server_ctx) = num_connections_server_ctx_t(server_ctx) + 1;
-  printf("num events: %d\n", num_connections_server_ctx_t(server_ctx));
-
-  if (num_connections_server_ctx_t(server_ctx) >= avail_connections_server_ctx_t(server_ctx)) {
-    int new_size = avail_connections_server_ctx_t(server_ctx) + SERVER_CTX_NUM_CONN_ALLOC;
-    if(new_size == SERVER_CTX_NUM_CONN_ALLOC){
-      printf("event malloc\n");
-      m = malloc(new_size * sizeof(struct kevent));
-    } else {
-      printf("event realloc\n");
-      m = realloc(events_server_ctx_t(server_ctx), new_size * sizeof(struct kevent));
-    }
-    if(m){
-      x_events_server_ctx_t(server_ctx) = m;
-      x_avail_connections_server_ctx_t(server_ctx) = new_size;
-    } else {
-      perror("malloc");
-      abort();
-    }
-  }
-}
 
 int server_accept(server_ctx_t * sctx, connection_t * conn){
   socklen_t remote_size;
@@ -87,8 +63,6 @@ int server_accept(server_ctx_t * sctx, connection_t * conn){
   //TODO: restore read/write/error handlers
   //TODO: create method so we don't have to do this?
   x_action_connection_t(client_conn) = default_action_server_ctx_t(sctx);
-  
-  server_alloc_event(sctx);
   server_connection_enable_read(sctx, client_conn);
 
   return 1;
@@ -99,7 +73,6 @@ void server_destroy(server_ctx_t * sctx){
   //TMP remove(?)
   sleep(2);
   connection_manager_destroy(connection_manager_server_ctx_t(sctx));
-  free(events_server_ctx_t(sctx));
 }
 
 void server_run(server_ctx_t * sctx){
@@ -109,8 +82,8 @@ void server_run(server_ctx_t * sctx){
     new_events = kevent(queue_server_ctx_t(sctx), 
                         NULL, 
                         0, 
-                        events_server_ctx_t(sctx),
-                        avail_connections_server_ctx_t(sctx), 
+                        events,
+                        SERVER_CTX_NUM_EVENTS, 
                         NULL);
 
     if (new_events < 0) {
@@ -119,41 +92,30 @@ void server_run(server_ctx_t * sctx){
       goto out;
     }
 
-    //why
-    x_num_connections_server_ctx_t(sctx) = 0;
-
     for (int i = 0; i < new_events; i++) {
 
-      struct kevent *e = &(events_server_ctx_t(sctx)[i]);
-      assert(e != NULL);
+      struct kevent e = events[i];
 
-      if( e->flags & EV_ERROR){
+      if( e.flags & EV_ERROR){
         //never called?
         perror("event");
-        printf("e->data: %ld\n", e->data);
+        printf("e.data: %ld\n", e.data);
         //TODO exec an error handler?
         continue;
       }
-      /*
-      if( e->filter & EVFILT_PROC && e->fflags & NOTE_SIGNAL){
-        //never called remove
-        printf("got a signal\n");
-      }
-      */
 
-      //connection_t * conn = (connection_t *) e->udata;
       connection_t * conn = connection_manager_get_connection(
-        connection_manager_server_ctx_t(sctx), e->ident);
+        connection_manager_server_ctx_t(sctx), e.ident);
 
       if(!conn){
-        fprintf(stderr, "Connection manager did not return connection obj for fd %ld\n", e->ident);
+        fprintf(stderr, "Connection manager did not return connection obj for fd %ld\n", e.ident);
         abort();
       }
-      assert(conn->fd == e->ident);
+      assert(fd_connection_t(conn) == e.ident);
       
-      if(e->ident != sctx->fd){
-        EV_SET(e, e->ident, e->filter, EV_DISABLE, 0, 0, conn);
-        if (kevent(queue_server_ctx_t(sctx), e, 1, NULL, 0, NULL) < 0) {
+      if(e.ident != fd_server_ctx_t(sctx)){
+        EV_SET(&e, e.ident, e.filter, EV_DISABLE, 0, 0, NULL);
+        if (kevent(queue_server_ctx_t(sctx), &e, 1, NULL, 0, NULL) < 0) {
           fprintf(stderr, "error %s:%d\n", __FILE__, __LINE__);
           perror("kevent");
           abort();
@@ -248,26 +210,13 @@ server_ctx_t * server_init(server_ctx_t * server_ctx, char * sock_path){
   server_ctx->w_queue = w_queue;
 
   x_fd_server_ctx_t(server_ctx) = s;
-  x_avail_connections_server_ctx_t(server_ctx) = 0;
-  x_num_connections_server_ctx_t(server_ctx) = 0;
-
 
   x_connection_manager_server_ctx_t(server_ctx) = connection_manager_init();
   //or maybe create connection after all..
   connection_t * server_connection = connection_manager_get_connection(
       connection_manager_server_ctx_t(server_ctx), s);
 
-  //TODO: free this! (avoiding circular dependencies)
-  /*
-  connection_t * server_connection = malloc(sizeof(connection_t));
-  if(server_connection == NULL){
-    perror("malloc");
-    exit(errno);
-  }
-  */
   x_action_connection_t(server_connection) = server_accept;
-
-  server_alloc_event(server_ctx);
   server_connection_enable_read(server_ctx, server_connection);
 
   return server_ctx;
@@ -297,7 +246,7 @@ void server_connection_enable_read(server_ctx_t * sctx, connection_t * conn) {
   assert(sctx != NULL);
   int clientfd = fd_connection_t(conn);
 
-  EV_SET(&evSet, clientfd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, conn);
+  EV_SET(&evSet, clientfd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
   //TODO: macro (?)
   if (kevent(queue_server_ctx_t(sctx), &evSet, 1, NULL, 0, NULL) < 0) {
     fprintf(stderr, "error %s:%d\n", __FILE__, __LINE__);
@@ -312,7 +261,7 @@ void server_connection_enable_write(server_ctx_t * sctx, connection_t * conn) {
   assert(sctx != NULL);
   int clientfd = fd_connection_t(conn);
 
-  EV_SET(&evSet, clientfd, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, conn);
+  EV_SET(&evSet, clientfd, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
   //TODO: macro (?)
   if (kevent(queue_server_ctx_t(sctx), &evSet, 1, NULL, 0, NULL) < 0) {
     fprintf(stderr, "error %s:%d\n", __FILE__, __LINE__);
@@ -327,7 +276,7 @@ void server_connection_disable_read(server_ctx_t * sctx, connection_t * conn) {
   assert(sctx != NULL);
   int clientfd = fd_connection_t(conn);
 
-  EV_SET(&evSet, clientfd, EVFILT_READ, EV_DISABLE, 0, 0, conn);
+  EV_SET(&evSet, clientfd, EVFILT_READ, EV_DISABLE, 0, 0, NULL);
   //TODO: macro (?)
   if (kevent(queue_server_ctx_t(sctx), &evSet, 1, NULL, 0, NULL) < 0) {
     fprintf(stderr, "error %s:%d\n", __FILE__, __LINE__);
@@ -350,10 +299,5 @@ void server_connection_delete_write(server_ctx_t * sctx, connection_t * conn) {
     perror("kevent");
     abort();
   }
-  /*
-  printf("closing and deleting %d\n", conn->fd);
-  close(clientfd);
-  free(conn);
-  */
   connection_manager_delete_connection(connection_manager_server_ctx_t(sctx), conn);
 }

@@ -31,17 +31,14 @@ connection_t * connection_manager_get_connection(connection_manager_t * m, int f
   node = bst_find(tree->root, fd);
 
   if(node == NULL){
-    //printf("get connection %d: node is null\n", fd);
     conn = connection_create(fd);
     bst_add(tree, fd, conn);
 
   } else {
     if (value_bst_node_t(node) == NULL){
-      printf("get connection %d: node value is null\n", fd);
       conn = connection_create(fd);
       x_value_bst_node_t(node) = conn;
     } else {
-      //printf("get connection %d: retreiving connection\n", fd);
       conn = (connection_t * ) value_bst_node_t(node);
     }
   }
@@ -65,12 +62,9 @@ void connection_manager_delete_connection_for_node(bst_node_t * node, void * arg
   assert(node != NULL);
   connection_t * conn = (connection_t *) value_bst_node_t(node);
   if(conn == NULL){
-    //printf("_delete_connection_in_bst: conn was null\n");
     return;
   }
-  //printf("destroying connection with fd %d\n", fd_connection_t(conn));
   if (fd_connection_t(conn) > 0 && (fcntl(fd_connection_t(conn), F_GETFD) != -1 || errno != EBADF)){
-    //printf("connection %d is open, attempting to close\n", fd_connection_t(conn));
     close(fd_connection_t(conn));
   }
   free(conn);
@@ -92,9 +86,7 @@ void connection_manager_delete_connection(connection_manager_t * m, connection_t
   assert(m->store != NULL);
   bst_node_t * node = bst_find(m->store->root, fd_connection_t(conn));
 
-  //printf("deleting connection with fd %d\n", fd_connection_t(conn));
   if (fd_connection_t(conn) > 0 && (fcntl(fd_connection_t(conn), F_GETFD) != -1 || errno != EBADF)){
-    //printf("connection %d is open, attempting to close\n", fd_connection_t(conn));
     close(fd_connection_t(conn));
   }
   free(conn);
