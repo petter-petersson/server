@@ -22,7 +22,6 @@
 #include "workqueue.h"
 
 //TODO: remove accessors and have asserts at fn beginning instead?
-
 int server_accept(server_ctx_t * sctx, connection_t * conn){
   socklen_t remote_size;
   int client_fd;
@@ -143,7 +142,6 @@ out:
 
 void server_sig_break_loop(){
   //kevent will throw an error *sometimes* depending on state - see server_run
-  //TODO: we need to stop loop too
   printf("sig break\n");
 }
 
