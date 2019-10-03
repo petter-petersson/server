@@ -47,9 +47,10 @@ libserver.a: server.o workqueue.o connection.o
 	$(AR) rc $(BUILD_DIR)/$@ $^
 
 # TODO: this target should be 'private' in some way
-all_tests: mem_buf_test workqueue_test
+all_tests: mem_buf_test workqueue_test connection_test
 	./mem_buf_test
 	./workqueue_test
+	./connection_test
 
 # TODO: this target should be 'private' in some way
 image_server: image.o mem_buf.o
@@ -60,6 +61,9 @@ mem_buf_test: test.o mem_buf.o mem_buf_test.o
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(LIBS)
 
 workqueue_test: test.o workqueue.o workqueue_test.o
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(LIBS)
+
+connection_test: test.o connection.o connection_test.o
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(LIBS)
 
 clean:

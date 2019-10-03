@@ -21,8 +21,6 @@
 //TODO: update threadpool lib and remove
 #include "workqueue.h"
 
-//tmp
-struct kevent events[SERVER_CTX_NUM_EVENTS];
 //TODO: remove accessors and have asserts at fn beginning instead?
 
 int server_accept(server_ctx_t * sctx, connection_t * conn){
@@ -61,7 +59,7 @@ int server_accept(server_ctx_t * sctx, connection_t * conn){
       connection_manager_server_ctx_t(sctx), client_fd);
 
   //TODO: restore read/write/error handlers
-  //TODO: create method so we don't have to do this?
+  //TODO: `create` method so we don't have to do this?
   x_action_connection_t(client_conn) = default_action_server_ctx_t(sctx);
   server_connection_enable_read(sctx, client_conn);
 
@@ -82,7 +80,7 @@ void server_run(server_ctx_t * sctx){
     new_events = kevent(queue_server_ctx_t(sctx), 
                         NULL, 
                         0, 
-                        events,
+                        sctx->events,
                         SERVER_CTX_NUM_EVENTS, 
                         NULL);
 
@@ -98,7 +96,7 @@ void server_run(server_ctx_t * sctx){
       //printf("event list: %d\n", i);
       assert(i < (SERVER_CTX_NUM_EVENTS-1));
 
-      struct kevent e = events[i];
+      struct kevent e = sctx->events[i];
 
       if( e.flags & EV_ERROR){
         //never called?

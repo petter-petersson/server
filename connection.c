@@ -60,7 +60,6 @@ connection_manager_t * connection_manager_init() {
   return manager;
 }
 
-//traverse method
 void connection_manager_delete_connection_for_node(bst_node_t * node, void * arg) {
   assert(node != NULL);
   connection_t * conn = (connection_t *) value_bst_node_t(node);
@@ -74,6 +73,12 @@ void connection_manager_delete_connection_for_node(bst_node_t * node, void * arg
   x_value_bst_node_t(node) = NULL;
 }
 
+void connection_manager_count_nodes(bst_node_t * node, void * arg) {
+  assert(node != NULL);
+  int * count = (int *) arg;
+  (*count)++;
+}
+
 void connection_manager_destroy(connection_manager_t * connection_manager){
   assert(connection_manager != NULL);
   assert(connection_manager->store != NULL);
@@ -85,7 +90,6 @@ void connection_manager_destroy(connection_manager_t * connection_manager){
 }
 
 void connection_manager_delete_connection(connection_manager_t * m, connection_t * conn){
-  //FIXME: we need a lock since this will be called from a thread
   assert(m != NULL);
   assert(conn != NULL);
   assert(m->store != NULL);
@@ -100,4 +104,13 @@ void connection_manager_delete_connection(connection_manager_t * m, connection_t
       x_value_bst_node_t(node) = NULL;
   }
   pthread_mutex_unlock(&(m->mutex));
+}
+
+int connection_manager_count(connection_manager_t * connection_manager){
+  assert(connection_manager != NULL);
+  assert(connection_manager->store != NULL);
+
+  int count = 0;
+  bst_traverse(connection_manager->store->root, connection_manager_count_nodes, &count);
+  return count;
 }

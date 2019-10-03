@@ -36,8 +36,6 @@ int write_command(server_ctx_t * sctx, connection_t * conn){
   assert(sctx != NULL);
   int clientfd = fd_connection_t(conn);
 
-  printf("server_write %d\n", clientfd);
-
   int d = dup(clientfd);
   if (d < 0){
     fprintf(stderr, "failed to dup client fd.\n");
@@ -131,8 +129,6 @@ int main(int argc, const char *argv[]) {
 
   sctx = server_init(&server_context, sock_path);
   server_run(sctx);
-
-  //FIXME: mem leak currently with server_connection not being free:d
 
   printf("Good bye.");
   return 0;

@@ -45,7 +45,6 @@ void * workqueue_thread_work(void * arg){
     }
 
     if(!wq->_running){
-      printf("breaking\n");
       pthread_mutex_unlock(&(wq->mutex));
       break;
     }

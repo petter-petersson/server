@@ -35,7 +35,7 @@ File.open('image.jpg', 'r') do |f|
   data = f.read
 
   10.times do |t|
-    30.times do |i|
+    40.times do |i|
       #if i % 2 == 0
       #  threads << Thread.new { send_chunks }
       #else

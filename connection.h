@@ -41,4 +41,6 @@ void connection_manager_destroy(connection_manager_t * connection_manager);
 void connection_manager_delete_connection(connection_manager_t * m, connection_t * conn);
 
 void connection_manager_delete_connection_for_node(bst_node_t * node, void * arg);
+void connection_manager_count_nodes(bst_node_t * node, void * arg);
+int connection_manager_count(connection_manager_t * connection_manager);
 #endif

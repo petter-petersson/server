@@ -3,6 +3,8 @@
 
 #include <assert.h>
 #include <pthread.h>
+#include <sys/types.h>
+#include <sys/event.h>
 
 #include "workqueue.h"
 #include "connection.h"
@@ -16,6 +18,7 @@ typedef struct server_ctx_s {
   int (*default_action) (struct server_ctx_s *sctx, connection_t * conn);
   workqueue_t * w_queue;
   connection_manager_t * connection_manager;
+  struct kevent events[SERVER_CTX_NUM_EVENTS];
 } server_ctx_t;
 
 typedef struct server_wq_arg_s {
